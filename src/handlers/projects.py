@@ -59,13 +59,13 @@ def handler(event, context):
     if method == "PATCH" and project_id:
         if role != "Admin":
             return error("Admin access required to edit projects", 403)
-        return _update(project_id, event)
+        return _update(project_id, event, role=role)
     if method == "POST":
         if role != "Admin":
             return error("Admin access required to create projects", 403)
         return _create(event)
     if method == "GET" and project_id:
-        return _get(project_id)
+        return _get(project_id, role=role)
     if method == "GET":
         return _list()
     if method == "DELETE" and project_id:
@@ -127,7 +127,7 @@ def _list():
     return ok({"projects": items})
 
 
-def _get(project_id):
+def _get(project_id, role="Viewer"):
     result = projects_table().get_item(Key={"project_id": project_id})
     item = result.get("Item")
     if not item:
@@ -136,6 +136,11 @@ def _get(project_id):
     if item.get("github_token"):
         item["github_token_set"] = True
     item.pop("github_token", None)
+    # Only Admins get the full API key — Viewers get masked
+    if role != "Admin":
+        key = item.get("api_key", "")
+        item["api_key"] = key[:7] + "••••••••" if len(key) > 7 else "••••••••"
+        item["api_key_masked"] = True
     return ok(item)
 
 
@@ -144,7 +149,7 @@ def _delete(project_id):
     return ok({"deleted": project_id})
 
 
-def _update(project_id, event):
+def _update(project_id, event, role="Admin"):
     """Update a project — name, description, GitHub repo, token."""
     body = parse_body(event)
     now = datetime.now(timezone.utc).isoformat()
@@ -188,13 +193,8 @@ def _update(project_id, event):
     except Exception:
         return error("Project not found", 404)
 
-    # Return the updated project (without token)
-    result = projects_table().get_item(Key={"project_id": project_id})
-    item = result.get("Item", {})
-    if item.get("github_token"):
-        item["github_token_set"] = True
-    item.pop("github_token", None)
-    return ok(item)
+    # Return the updated project via _get (handles masking)
+    return _get(project_id, role=role)
 
 
 def _validate_github(repo: str, token: str) -> dict:
