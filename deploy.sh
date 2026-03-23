@@ -50,10 +50,14 @@ else
     fi
 fi
 
+# Resolve region from samconfig.toml or AWS CLI default
+REGION=$(grep -m1 'region' samconfig.toml 2>/dev/null | sed 's/.*= *"\(.*\)"/\1/' || aws configure get region 2>/dev/null || echo "us-east-1")
+echo "Using region: ${REGION}"
+
 # Get stack outputs
 echo ""
 echo "Fetching stack outputs..."
-OUTPUTS=$(aws cloudformation describe-stacks --stack-name "pulseboard-${STAGE}" --query "Stacks[0].Outputs" --output json 2>/dev/null || echo "[]")
+OUTPUTS=$(aws cloudformation describe-stacks --stack-name "pulseboard-${STAGE}" --region "${REGION}" --query "Stacks[0].Outputs" --output json 2>/dev/null || echo "[]")
 
 CLOUDFRONT_URL=$(echo "$OUTPUTS" | python3 -c "import sys,json; [print(o['OutputValue']) for o in json.load(sys.stdin) if o['OutputKey']=='CloudFrontUrl']" 2>/dev/null || echo "")
 DASHBOARD_BUCKET=$(echo "$OUTPUTS" | python3 -c "import sys,json; [print(o['OutputValue']) for o in json.load(sys.stdin) if o['OutputKey']=='DashboardBucket']" 2>/dev/null || echo "")
@@ -61,7 +65,6 @@ USER_POOL_ID=$(echo "$OUTPUTS" | python3 -c "import sys,json; [print(o['OutputVa
 CLIENT_ID=$(echo "$OUTPUTS" | python3 -c "import sys,json; [print(o['OutputValue']) for o in json.load(sys.stdin) if o['OutputKey']=='UserPoolClientId']" 2>/dev/null || echo "")
 API_URL=$(echo "$OUTPUTS" | python3 -c "import sys,json; [print(o['OutputValue']) for o in json.load(sys.stdin) if o['OutputKey']=='ApiUrl']" 2>/dev/null || echo "")
 INGEST_URL=$(echo "$OUTPUTS" | python3 -c "import sys,json; [print(o['OutputValue']) for o in json.load(sys.stdin) if o['OutputKey']=='IngestEndpoint']" 2>/dev/null || echo "")
-REGION=$(aws configure get region 2>/dev/null || echo "us-east-1")
 
 if [ -z "$DASHBOARD_BUCKET" ]; then
     echo "ERROR: Could not get stack outputs. Is the stack deployed?"
