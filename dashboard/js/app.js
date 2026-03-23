@@ -143,10 +143,22 @@
         });
         document.getElementById('btn-invite')?.addEventListener('click', handleInviteAdmin);
 
-        // Project settings buttons
+        // API Key show/copy (admin only)
+        document.getElementById('btn-show-key')?.addEventListener('click', () => {
+            if (!PBAuth.isAdmin()) return;
+            const el = document.getElementById('project-api-key');
+            const showBtn = document.getElementById('btn-show-key');
+            const copyBtn = document.getElementById('btn-copy-key');
+            if (el && currentProject) {
+                el.textContent = currentProject.api_key;
+                el.classList.add('select-all');
+                showBtn?.classList.add('hidden');
+                copyBtn?.classList.remove('hidden');
+            }
+        });
         document.getElementById('btn-copy-key')?.addEventListener('click', () => {
             const key = document.getElementById('project-api-key')?.textContent;
-            if (key) navigator.clipboard.writeText(key);
+            if (key && key !== '••••••••••••') navigator.clipboard.writeText(key);
         });
         document.getElementById('btn-regen-key')?.addEventListener('click', handleRegenKey);
         document.getElementById('btn-delete-project')?.addEventListener('click', handleDeleteProject);
@@ -214,7 +226,13 @@
     function showDashboard() {
         document.getElementById('login-screen')?.classList.add('hidden');
         document.getElementById('dashboard')?.classList.remove('hidden');
-        document.getElementById('user-email').textContent = PBAuth.getUser();
+        const role = PBAuth.getRole();
+        document.getElementById('user-email').textContent = `${PBAuth.getUser()} (${role})`;
+
+        // Hide admin-only elements for viewers
+        if (!PBAuth.isAdmin()) {
+            document.querySelectorAll('.admin-only').forEach(el => el.classList.add('hidden'));
+        }
         loadProjects();
     }
 
@@ -260,12 +278,16 @@
 
             // Settings panel
             document.getElementById('project-id').textContent = project.project_id;
-            document.getElementById('project-api-key').textContent = project.api_key;
+            // API key always starts masked — admin clicks Show to reveal
+            document.getElementById('project-api-key').textContent = '••••••••••••';
+            document.getElementById('btn-show-key')?.classList.remove('hidden');
+            document.getElementById('btn-copy-key')?.classList.add('hidden');
             const baseUrl = window.PB_CONFIG?.apiBase || window.location.origin;
             document.getElementById('project-endpoint').textContent = `${baseUrl}/ingest`;
+            const displayKey = PBAuth.isAdmin() ? project.api_key : '••••••••••••';
             document.getElementById('sdk-snippet').textContent =
                 `from pulseboard import PulseBoard\n` +
-                `pb = PulseBoard(api_key="${project.api_key}", endpoint="${baseUrl}/ingest")\n` +
+                `pb = PulseBoard(api_key="${displayKey}", endpoint="${baseUrl}/ingest")\n` +
                 `pb.startup(version="1.0")`;
 
             // GitHub fields

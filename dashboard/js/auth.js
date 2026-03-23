@@ -45,6 +45,23 @@
             return this._user || '';
         },
 
+        getRole() {
+            // Decode the IdToken JWT to extract cognito:groups
+            try {
+                const token = this.getIdToken();
+                if (!token) return 'Viewer';
+                const payload = JSON.parse(atob(token.split('.')[1]));
+                const groups = payload['cognito:groups'] || [];
+                return groups.includes('Admins') ? 'Admin' : 'Viewer';
+            } catch (_) {
+                return 'Viewer';
+            }
+        },
+
+        isAdmin() {
+            return this.getRole() === 'Admin';
+        },
+
         async login(email, password) {
             const endpoint = `https://cognito-idp.${CONFIG.region}.amazonaws.com/`;
             const response = await fetch(endpoint, {
