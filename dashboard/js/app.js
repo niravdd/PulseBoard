@@ -403,9 +403,10 @@
             const osTotal = osData.reduce((s, o) => s + o.count, 0);
             osListEl.innerHTML = osData.map(o => {
                 const pct = osTotal > 0 ? Math.round(o.count / osTotal * 100) : 0;
-                return `<div class="flex items-center justify-between text-xs">
-                    <span class="text-pb-text">${esc(o.name)}</span>
-                    <span class="text-pb-muted font-mono">${o.count} <span class="text-[9px]">(${pct}%)</span></span>
+                return `<div class="flex items-center gap-1 text-xs" title="${esc(o.name)} — ${o.count} unique deployments (${pct}%)">
+                    <span class="text-pb-text flex-1">${esc(o.name)}</span>
+                    <span class="text-pb-muted font-mono">${o.count}</span>
+                    <span class="text-[9px] text-pb-muted">(${pct}%)</span>
                 </div>`;
             }).join('') || '<p class="text-[10px] text-pb-muted">No OS data</p>';
         }
@@ -415,12 +416,12 @@
         const versions = data.versions || [];
         const maxCount = versions[0]?.count || 1;
         versionList.innerHTML = versions.map(v => `
-            <div class="flex items-center gap-2">
-                <span class="text-xs font-mono w-20 truncate text-pb-text">${esc(v.name)}</span>
+            <div class="flex items-center gap-2" title="${esc(v.name)} — ${v.count} unique deployments">
+                <span class="text-xs font-mono w-2/5 truncate text-pb-text">${esc(v.name)}</span>
                 <div class="flex-1 h-2 rounded-full bg-pb-bg overflow-hidden">
                     <div class="h-full rounded-full bg-gradient-to-r from-pb-accent to-purple-500" style="width: ${Math.round(v.count / maxCount * 100)}%"></div>
                 </div>
-                <span class="text-xs text-pb-muted w-10 text-right">${v.count}</span>
+                <span class="text-xs text-pb-muted w-8 text-right flex-shrink-0">${v.count}</span>
             </div>
         `).join('');
 
@@ -429,13 +430,13 @@
         const countries = data.countries || [];
         const maxC = countries[0]?.count || 1;
         countryList.innerHTML = countries.map(c => `
-            <div class="flex items-center gap-2">
-                <span class="text-xs w-8 text-center">${countryFlag(c.name)}</span>
-                <span class="text-xs w-16 truncate text-pb-text">${esc(c.name)}</span>
+            <div class="flex items-center gap-2" title="${esc(c.name)} — ${c.count} unique deployments">
+                <span class="text-xs w-8 text-center flex-shrink-0">${countryFlag(c.name)}</span>
+                <span class="text-xs min-w-[2rem] truncate text-pb-text">${esc(c.name)}</span>
                 <div class="flex-1 h-2 rounded-full bg-pb-bg overflow-hidden">
                     <div class="h-full rounded-full bg-gradient-to-r from-pb-green to-cyan-500" style="width: ${Math.round(c.count / maxC * 100)}%"></div>
                 </div>
-                <span class="text-xs text-pb-muted w-10 text-right">${c.count}</span>
+                <span class="text-xs text-pb-muted w-10 text-right flex-shrink-0">${c.count}</span>
             </div>
         `).join('');
 
@@ -446,12 +447,12 @@
         modelList.innerHTML = models.length === 0
             ? '<p class="text-xs text-pb-muted">No model data yet</p>'
             : models.map(m => `
-                <div class="flex items-center gap-2">
-                    <span class="text-xs font-mono w-28 truncate text-pb-text">${esc(m.name)}</span>
+                <div class="flex items-center gap-2" title="${esc(m.name)} — ${m.count} events">
+                    <span class="text-xs font-mono w-2/5 truncate text-pb-text">${esc(m.name)}</span>
                     <div class="flex-1 h-2 rounded-full bg-pb-bg overflow-hidden">
                         <div class="h-full rounded-full bg-gradient-to-r from-pb-amber to-orange-500" style="width: ${Math.round(m.count / maxM * 100)}%"></div>
                     </div>
-                    <span class="text-xs text-pb-muted w-10 text-right">${m.count}</span>
+                    <span class="text-xs text-pb-muted w-10 text-right flex-shrink-0">${m.count}</span>
                 </div>
             `).join('');
 
@@ -462,12 +463,12 @@
         etList.innerHTML = ets.length === 0
             ? '<p class="text-xs text-pb-muted">No event data yet</p>'
             : ets.map(e => `
-                <div class="flex items-center gap-2">
-                    <span class="text-xs font-mono w-28 truncate text-pb-text">${esc(e.name)}</span>
+                <div class="flex items-center gap-2" title="${esc(e.name)} — ${e.count} events">
+                    <span class="text-xs font-mono w-2/5 truncate text-pb-text">${esc(e.name)}</span>
                     <div class="flex-1 h-2 rounded-full bg-pb-bg overflow-hidden">
                         <div class="h-full rounded-full bg-gradient-to-r from-purple-500 to-pink-500" style="width: ${Math.round(e.count / maxET * 100)}%"></div>
                     </div>
-                    <span class="text-xs text-pb-muted w-10 text-right">${e.count}</span>
+                    <span class="text-xs text-pb-muted w-10 text-right flex-shrink-0">${e.count}</span>
                 </div>
             `).join('');
 
