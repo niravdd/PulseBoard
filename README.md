@@ -4,7 +4,7 @@
 
 ![AWS](https://img.shields.io/badge/AWS-Serverless-orange?logo=amazonaws)
 ![Python](https://img.shields.io/badge/Python-3.12+-blue?logo=python&logoColor=white)
-![License](https://img.shields.io/badge/License-Apache%202.0-blue)
+![License](https://img.shields.io/badge/License-MIT--0-yellow)
 
 Track real deployments of your open-source projects — not just GitHub clones. Know how many people actually run your software, which versions they use, what OS they're on, where in the world they are, and how much they spend on cloud services.
 
@@ -374,4 +374,4 @@ At low-to-moderate volume (< 10,000 events/month):
 
 ## License
 
-Apache License 2.0 — see [LICENSE](LICENSE).
+MIT No Attribution — see [LICENSE](LICENSE).
