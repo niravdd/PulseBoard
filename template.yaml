@@ -126,6 +126,22 @@ Resources:
         - ALLOW_REFRESH_TOKEN_AUTH
       PreventUserExistenceErrors: ENABLED
 
+  AdminGroup:
+    Type: AWS::Cognito::UserPoolGroup
+    Properties:
+      GroupName: Admins
+      UserPoolId: !Ref UserPool
+      Description: Full access — manage projects, invite users, purge data
+      Precedence: 0
+
+  ViewerGroup:
+    Type: AWS::Cognito::UserPoolGroup
+    Properties:
+      GroupName: Viewers
+      UserPoolId: !Ref UserPool
+      Description: Read-only access — view stats and events
+      Precedence: 10
+
   AdminUser:
     Type: AWS::Cognito::UserPoolUser
     Properties:
@@ -135,6 +151,14 @@ Resources:
         - Name: email
           Value: !Ref AdminEmail
       DesiredDeliveryMediums: [EMAIL]
+
+  AdminUserGroupMembership:
+    Type: AWS::Cognito::UserPoolUserToGroupAttachment
+    DependsOn: AdminUser
+    Properties:
+      UserPoolId: !Ref UserPool
+      Username: !Ref AdminEmail
+      GroupName: Admins
 
   # ── Lambda Functions ─────────────────────────────────────────────────
 
@@ -175,7 +199,10 @@ Resources:
             - Effect: Allow
               Action:
                 - cognito-idp:AdminCreateUser
+                - cognito-idp:AdminAddUserToGroup
+                - cognito-idp:AdminListGroupsForUser
                 - cognito-idp:ListUsers
+                - cognito-idp:ListUsersInGroup
               Resource: !GetAtt UserPool.Arn
       Events:
         ListProjects:

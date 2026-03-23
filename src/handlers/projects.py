@@ -24,25 +24,48 @@ from shared.response import ok, error, parse_body
 USER_POOL_ID = os.environ.get("USER_POOL_ID", "")
 
 
+def _get_user_role(event):
+    """Extract user role from Cognito JWT claims. Returns 'Admin' or 'Viewer'."""
+    try:
+        claims = event.get("requestContext", {}).get("authorizer", {}).get("claims", {})
+        groups = claims.get("cognito:groups", "")
+        if "Admins" in groups:
+            return "Admin"
+    except Exception:
+        pass
+    return "Viewer"
+
+
 def handler(event, context):
     method = event.get("httpMethod", "GET")
     path = event.get("path", "")
     path_params = event.get("pathParameters") or {}
     project_id = path_params.get("project_id")
 
+    role = _get_user_role(event)
+
+    # Admin-only actions
     if method == "POST" and "regen-key" in path:
+        if role != "Admin":
+            return error("Admin access required", 403)
         return _regen_key(project_id)
     if method == "POST" and "admin/invite" in path:
+        if role != "Admin":
+            return error("Admin access required", 403)
         return _invite_admin(event)
     if method == "GET" and "admin/users" in path:
         return _list_admins()
     if method == "POST":
+        if role != "Admin":
+            return error("Admin access required to create projects", 403)
         return _create(event)
     if method == "GET" and project_id:
         return _get(project_id)
     if method == "GET":
         return _list()
     if method == "DELETE" and project_id:
+        if role != "Admin":
+            return error("Admin access required to delete projects", 403)
         return _delete(project_id)
 
     return error("Method not allowed", 405)
@@ -103,13 +126,18 @@ def _delete(project_id):
 
 
 def _invite_admin(event):
-    """Invite a new admin user to PulseBoard via Cognito."""
+    """Invite a new user to PulseBoard via Cognito with a role (Admin or Viewer)."""
     body = parse_body(event)
     email = body.get("email", "").strip()
+    role = body.get("role", "Viewer")  # Default to Viewer
+    if role not in ("Admin", "Viewer"):
+        return error("Role must be 'Admin' or 'Viewer'")
     if not email:
         return error("Email is required")
     if not USER_POOL_ID:
         return error("User Pool not configured", 500)
+
+    group_name = "Admins" if role == "Admin" else "Viewers"
 
     try:
         cognito = boto3.client("cognito-idp")
@@ -119,7 +147,13 @@ def _invite_admin(event):
             UserAttributes=[{"Name": "email", "Value": email}],
             DesiredDeliveryMediums=["EMAIL"],
         )
-        return ok({"invited": email, "message": "Temporary password sent via email"}, 201)
+        # Add to the appropriate group
+        cognito.admin_add_user_to_group(
+            UserPoolId=USER_POOL_ID,
+            Username=email,
+            GroupName=group_name,
+        )
+        return ok({"invited": email, "role": role, "message": f"Temporary password sent via email ({role} access)"}, 201)
     except cognito.exceptions.UsernameExistsException:
         return error(f"User {email} already exists")
     except Exception as exc:
@@ -127,7 +161,7 @@ def _invite_admin(event):
 
 
 def _list_admins():
-    """List all admin users in the Cognito User Pool."""
+    """List all users in the Cognito User Pool with their roles."""
     if not USER_POOL_ID:
         return error("User Pool not configured", 500)
     try:
@@ -139,8 +173,19 @@ def _list_admins():
             for attr in u.get("Attributes", []):
                 if attr["Name"] == "email":
                     email = attr["Value"]
+            # Get user's groups
+            try:
+                groups_result = cognito.admin_list_groups_for_user(
+                    UserPoolId=USER_POOL_ID, Username=u["Username"], Limit=10,
+                )
+                groups = [g["GroupName"] for g in groups_result.get("Groups", [])]
+            except Exception:
+                groups = []
+            role = "Admin" if "Admins" in groups else "Viewer" if "Viewers" in groups else "No role"
             users.append({
                 "email": email,
+                "username": u["Username"],
+                "role": role,
                 "status": u.get("UserStatus", ""),
                 "created": str(u.get("UserCreateDate", "")),
                 "enabled": u.get("Enabled", True),

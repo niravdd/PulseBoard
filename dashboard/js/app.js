@@ -15,6 +15,8 @@
     const AUTO_REFRESH_MS = 5 * 60 * 1000; // 5 minutes
     const IDLE_THRESHOLD_MS = 30 * 1000;    // Consider idle after 30s of no interaction
     let _lastInteraction = Date.now();
+    let _lastRefresh = Date.now();
+    let _countdownTimer = null;
 
     // ── Init ────────────────────────────────────────────────────────
 
@@ -105,6 +107,17 @@
             document.getElementById('new-project-modal')?.classList.add('hidden');
         });
         document.getElementById('btn-create-project')?.addEventListener('click', handleCreateProject);
+
+        // Manual refresh
+        document.getElementById('btn-refresh')?.addEventListener('click', () => {
+            if (currentProject) {
+                _lastRefresh = Date.now();
+                loadOverview(currentProject.project_id);
+                loadTimeseries(currentProject.project_id);
+                loadBreakdown(currentProject.project_id);
+                loadEvents(currentProject.project_id);
+            }
+        });
 
         // Admin management
         document.getElementById('btn-manage-admins')?.addEventListener('click', () => {
@@ -424,17 +437,32 @@
 
     function _startAutoRefresh(projectId) {
         if (_autoRefreshTimer) clearInterval(_autoRefreshTimer);
+        if (_countdownTimer) clearInterval(_countdownTimer);
+        _lastRefresh = Date.now();
+
         _autoRefreshTimer = setInterval(() => {
-            // Only refresh when idle (no interaction for IDLE_THRESHOLD_MS)
             const idle = (Date.now() - _lastInteraction) > IDLE_THRESHOLD_MS;
             if (!idle) return;
             if (currentProject?.project_id !== projectId) return;
 
+            _lastRefresh = Date.now();
             loadOverview(projectId);
             loadTimeseries(projectId);
             loadBreakdown(projectId);
             loadEvents(projectId);
         }, AUTO_REFRESH_MS);
+
+        // Countdown display — update every second
+        _countdownTimer = setInterval(() => {
+            const el = document.getElementById('refresh-countdown');
+            if (!el) return;
+            const elapsed = Date.now() - _lastRefresh;
+            const remaining = Math.max(0, AUTO_REFRESH_MS - elapsed);
+            const mins = Math.floor(remaining / 60000);
+            const secs = Math.floor((remaining % 60000) / 1000);
+            const idle = (Date.now() - _lastInteraction) > IDLE_THRESHOLD_MS;
+            el.textContent = idle ? `${mins}:${String(secs).padStart(2, '0')}` : 'paused';
+        }, 1000);
     }
 
     // ── Admin Management ────────────────────────────────────────
@@ -446,15 +474,20 @@
         try {
             const data = await PBAuth.api('/admin/users');
             const users = data.users || [];
-            list.innerHTML = users.map(u => `
-                <div class="flex items-center justify-between p-2 rounded-lg bg-pb-bg border border-pb-border">
-                    <div>
-                        <span class="text-sm">${esc(u.email)}</span>
-                        <span class="text-[10px] ml-2 px-1.5 py-0.5 rounded ${u.status === 'CONFIRMED' ? 'bg-green-500/10 text-green-400' : 'bg-amber-500/10 text-amber-400'}">${u.status}</span>
+            list.innerHTML = users.map(u => {
+                const roleColor = u.role === 'Admin' ? 'bg-pb-accent/10 text-pb-accent' : 'bg-emerald-500/10 text-emerald-400';
+                const statusColor = u.status === 'CONFIRMED' ? 'bg-green-500/10 text-green-400' : 'bg-amber-500/10 text-amber-400';
+                return `
+                    <div class="flex items-center justify-between p-2 rounded-lg bg-pb-bg border border-pb-border">
+                        <div class="flex items-center gap-2">
+                            <span class="text-sm">${esc(u.email)}</span>
+                            <span class="text-[10px] px-1.5 py-0.5 rounded font-medium ${roleColor}">${u.role}</span>
+                            <span class="text-[10px] px-1.5 py-0.5 rounded ${statusColor}">${u.status}</span>
+                        </div>
+                        <span class="text-[10px] text-pb-muted">${new Date(u.created).toLocaleDateString()}</span>
                     </div>
-                    <span class="text-[10px] text-pb-muted">${new Date(u.created).toLocaleDateString()}</span>
-                </div>
-            `).join('') || '<p class="text-xs text-pb-muted text-center py-2">No users</p>';
+                `;
+            }).join('') || '<p class="text-xs text-pb-muted text-center py-2">No users</p>';
         } catch (err) {
             list.innerHTML = `<p class="text-xs text-red-400 text-center py-2">${err.message}</p>`;
         }
@@ -462,11 +495,12 @@
 
     async function handleInviteAdmin() {
         const email = document.getElementById('invite-email')?.value?.trim();
+        const role = document.getElementById('invite-role')?.value || 'Viewer';
         const status = document.getElementById('invite-status');
         if (!email) return;
 
         try {
-            await PBAuth.api('/admin/invite', { method: 'POST', body: { email } });
+            await PBAuth.api('/admin/invite', { method: 'POST', body: { email, role } });
             if (status) {
                 status.className = 'text-xs mt-1 text-green-400';
                 status.textContent = `Invited ${email} — temporary password sent via email`;
