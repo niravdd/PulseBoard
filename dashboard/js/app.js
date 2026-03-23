@@ -559,16 +559,36 @@
             if (!section) return;
             section.classList.remove('hidden');
 
+            // Dynamic period label
+            const periodLabel = _currentDays === 0 ? '(lifetime)' : _currentDays === -1 ? '(custom)' : _currentDays === 1 ? '(today)' : `(${_currentDays}d)`;
+            const clonesPeriod = document.getElementById('gh-clones-period');
+            const viewsPeriod = document.getElementById('gh-views-period');
+            if (clonesPeriod) clonesPeriod.textContent = periodLabel;
+            if (viewsPeriod) viewsPeriod.textContent = periodLabel;
+
             document.getElementById('gh-stars').textContent = (data.stars || 0).toLocaleString();
             document.getElementById('gh-watchers').textContent = `${(data.watchers || 0).toLocaleString()} watchers`;
             document.getElementById('gh-forks').textContent = (data.forks || 0).toLocaleString();
             document.getElementById('gh-issues').textContent = `${data.open_issues || 0} open issues · ${data.contributors || 0} contributors`;
 
             if (data.has_traffic) {
-                document.getElementById('gh-clones').textContent = (data.total_clones_14d || 0).toLocaleString();
-                document.getElementById('gh-clones-unique').textContent = `${data.unique_cloners_14d || 0} unique cloners`;
-                document.getElementById('gh-views').textContent = (data.total_views_14d || 0).toLocaleString();
-                document.getElementById('gh-views-unique').textContent = `${data.unique_visitors_14d || 0} unique visitors`;
+                // Sum from daily data (respects period filter) when available
+                const daily = data.daily || [];
+                if (daily.length > 0) {
+                    const totalClones = daily.reduce((s, d) => s + (d.clones || 0), 0);
+                    const totalUniqueClones = daily.reduce((s, d) => s + (d.clones_unique || 0), 0);
+                    const totalViews = daily.reduce((s, d) => s + (d.views || 0), 0);
+                    const totalUniqueViews = daily.reduce((s, d) => s + (d.views_unique || 0), 0);
+                    document.getElementById('gh-clones').textContent = totalClones.toLocaleString();
+                    document.getElementById('gh-clones-unique').textContent = `${totalUniqueClones} unique cloners`;
+                    document.getElementById('gh-views').textContent = totalViews.toLocaleString();
+                    document.getElementById('gh-views-unique').textContent = `${totalUniqueViews} unique visitors`;
+                } else {
+                    document.getElementById('gh-clones').textContent = (data.total_clones_14d || 0).toLocaleString();
+                    document.getElementById('gh-clones-unique').textContent = `${data.unique_cloners_14d || 0} unique cloners`;
+                    document.getElementById('gh-views').textContent = (data.total_views_14d || 0).toLocaleString();
+                    document.getElementById('gh-views-unique').textContent = `${data.unique_visitors_14d || 0} unique visitors`;
+                }
             } else {
                 document.getElementById('gh-clones').textContent = '—';
                 const clonesBadge = document.getElementById('gh-clones-unique');
