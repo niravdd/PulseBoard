@@ -14,10 +14,14 @@ Endpoints:
 import uuid
 from datetime import datetime, timezone
 
+import boto3
+
 import sys, os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from shared.db import projects_table
 from shared.response import ok, error, parse_body
+
+USER_POOL_ID = os.environ.get("USER_POOL_ID", "")
 
 
 def handler(event, context):
@@ -28,6 +32,10 @@ def handler(event, context):
 
     if method == "POST" and "regen-key" in path:
         return _regen_key(project_id)
+    if method == "POST" and "admin/invite" in path:
+        return _invite_admin(event)
+    if method == "GET" and "admin/users" in path:
+        return _list_admins()
     if method == "POST":
         return _create(event)
     if method == "GET" and project_id:
@@ -92,6 +100,54 @@ def _get(project_id):
 def _delete(project_id):
     projects_table().delete_item(Key={"project_id": project_id})
     return ok({"deleted": project_id})
+
+
+def _invite_admin(event):
+    """Invite a new admin user to PulseBoard via Cognito."""
+    body = parse_body(event)
+    email = body.get("email", "").strip()
+    if not email:
+        return error("Email is required")
+    if not USER_POOL_ID:
+        return error("User Pool not configured", 500)
+
+    try:
+        cognito = boto3.client("cognito-idp")
+        cognito.admin_create_user(
+            UserPoolId=USER_POOL_ID,
+            Username=email,
+            UserAttributes=[{"Name": "email", "Value": email}],
+            DesiredDeliveryMediums=["EMAIL"],
+        )
+        return ok({"invited": email, "message": "Temporary password sent via email"}, 201)
+    except cognito.exceptions.UsernameExistsException:
+        return error(f"User {email} already exists")
+    except Exception as exc:
+        return error(f"Failed to invite user: {exc}")
+
+
+def _list_admins():
+    """List all admin users in the Cognito User Pool."""
+    if not USER_POOL_ID:
+        return error("User Pool not configured", 500)
+    try:
+        cognito = boto3.client("cognito-idp")
+        result = cognito.list_users(UserPoolId=USER_POOL_ID, Limit=50)
+        users = []
+        for u in result.get("Users", []):
+            email = ""
+            for attr in u.get("Attributes", []):
+                if attr["Name"] == "email":
+                    email = attr["Value"]
+            users.append({
+                "email": email,
+                "status": u.get("UserStatus", ""),
+                "created": str(u.get("UserCreateDate", "")),
+                "enabled": u.get("Enabled", True),
+            })
+        return ok({"users": users})
+    except Exception as exc:
+        return error(f"Failed to list users: {exc}")
 
 
 def _regen_key(project_id):

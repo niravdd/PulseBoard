@@ -165,9 +165,18 @@ Resources:
       FunctionName: !Sub pulseboard-projects-${Stage}
       Handler: src/handlers/projects.handler
       Description: Project registration and management (Cognito-protected)
+      Environment:
+        Variables:
+          USER_POOL_ID: !Ref UserPool
       Policies:
         - DynamoDBCrudPolicy:
             TableName: !Ref ProjectsTable
+        - Statement:
+            - Effect: Allow
+              Action:
+                - cognito-idp:AdminCreateUser
+                - cognito-idp:ListUsers
+              Resource: !GetAtt UserPool.Arn
       Events:
         ListProjects:
           Type: Api
@@ -207,6 +216,22 @@ Resources:
             RestApiId: !Ref PulseBoardApi
             Path: /projects/{project_id}/regen-key
             Method: POST
+            Auth:
+              Authorizer: CognitoAuth
+        InviteAdmin:
+          Type: Api
+          Properties:
+            RestApiId: !Ref PulseBoardApi
+            Path: /admin/invite
+            Method: POST
+            Auth:
+              Authorizer: CognitoAuth
+        ListAdmins:
+          Type: Api
+          Properties:
+            RestApiId: !Ref PulseBoardApi
+            Path: /admin/users
+            Method: GET
             Auth:
               Authorizer: CognitoAuth
 
@@ -348,6 +373,13 @@ Resources:
             OriginRequestPolicyId: b689b0a8-53d0-40ab-baf2-68738e2966ac  # AllViewerExceptHostHeader
             Compress: true
           - PathPattern: /projects*
+            TargetOriginId: ApiOrigin
+            ViewerProtocolPolicy: https-only
+            AllowedMethods: [GET, HEAD, OPTIONS, PUT, PATCH, POST, DELETE]
+            CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
+            OriginRequestPolicyId: b689b0a8-53d0-40ab-baf2-68738e2966ac
+            Compress: true
+          - PathPattern: /admin/*
             TargetOriginId: ApiOrigin
             ViewerProtocolPolicy: https-only
             AllowedMethods: [GET, HEAD, OPTIONS, PUT, PATCH, POST, DELETE]

@@ -93,6 +93,7 @@
                 </div>
                 <div class="flex items-center gap-3">
                     <button id="btn-new-project" class="px-3 py-1.5 rounded-lg bg-pb-accent/10 text-pb-accent text-sm font-medium hover:bg-pb-accent/20 transition-colors">+ New Project</button>
+                    <button id="btn-manage-admins" class="px-3 py-1.5 rounded-lg bg-pb-bg border border-pb-border text-sm text-pb-muted hover:border-pb-accent transition-colors">Admins</button>
                     <span id="user-email" class="text-xs text-pb-muted"></span>
                     <button id="btn-logout" class="text-xs text-pb-muted hover:text-pb-text transition-colors">Sign Out</button>
                 </div>
@@ -280,6 +281,25 @@
             <div class="flex gap-2 justify-end">
                 <button id="btn-cancel-project" class="px-4 py-2 rounded-lg border border-pb-border text-sm hover:bg-pb-bg transition-colors">Cancel</button>
                 <button id="btn-create-project" class="px-4 py-2 rounded-lg bg-pb-accent text-white text-sm font-medium hover:bg-pb-accent-hover transition-colors">Create</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Admin Users Modal -->
+    <div id="admin-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+        <div class="w-full max-w-md p-6 rounded-2xl bg-pb-surface border border-pb-border shadow-2xl space-y-4">
+            <div class="flex items-center justify-between">
+                <h3 class="text-lg font-semibold">Manage Admins</h3>
+                <button id="btn-close-admins" class="text-pb-muted hover:text-pb-text text-xl">&times;</button>
+            </div>
+            <div id="admin-list" class="space-y-2 max-h-48 overflow-auto"></div>
+            <div class="border-t border-pb-border pt-3">
+                <label class="block text-sm text-pb-muted mb-1">Invite New Admin</label>
+                <div class="flex gap-2">
+                    <input type="email" id="invite-email" class="flex-1 px-3 py-2 rounded-lg bg-pb-bg border border-pb-border text-sm text-pb-text focus:border-pb-accent focus:outline-none" placeholder="colleague@example.com">
+                    <button id="btn-invite" class="px-4 py-2 rounded-lg bg-pb-accent text-white text-sm font-medium hover:bg-pb-accent-hover transition-colors">Invite</button>
+                </div>
+                <p id="invite-status" class="text-xs mt-1 hidden"></p>
             </div>
         </div>
     </div>

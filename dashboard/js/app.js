@@ -97,6 +97,16 @@
         });
         document.getElementById('btn-create-project')?.addEventListener('click', handleCreateProject);
 
+        // Admin management
+        document.getElementById('btn-manage-admins')?.addEventListener('click', () => {
+            document.getElementById('admin-modal')?.classList.remove('hidden');
+            loadAdmins();
+        });
+        document.getElementById('btn-close-admins')?.addEventListener('click', () => {
+            document.getElementById('admin-modal')?.classList.add('hidden');
+        });
+        document.getElementById('btn-invite')?.addEventListener('click', handleInviteAdmin);
+
         // Project settings buttons
         document.getElementById('btn-copy-key')?.addEventListener('click', () => {
             const key = document.getElementById('project-api-key')?.textContent;
@@ -379,6 +389,52 @@
             document.getElementById('no-project')?.classList.remove('hidden');
         } catch (err) {
             alert('Failed: ' + err.message);
+        }
+    }
+
+    // ── Admin Management ────────────────────────────────────────
+
+    async function loadAdmins() {
+        const list = document.getElementById('admin-list');
+        if (!list) return;
+        list.innerHTML = '<p class="text-xs text-pb-muted text-center py-2">Loading...</p>';
+        try {
+            const data = await PBAuth.api('/admin/users');
+            const users = data.users || [];
+            list.innerHTML = users.map(u => `
+                <div class="flex items-center justify-between p-2 rounded-lg bg-pb-bg border border-pb-border">
+                    <div>
+                        <span class="text-sm">${esc(u.email)}</span>
+                        <span class="text-[10px] ml-2 px-1.5 py-0.5 rounded ${u.status === 'CONFIRMED' ? 'bg-green-500/10 text-green-400' : 'bg-amber-500/10 text-amber-400'}">${u.status}</span>
+                    </div>
+                    <span class="text-[10px] text-pb-muted">${new Date(u.created).toLocaleDateString()}</span>
+                </div>
+            `).join('') || '<p class="text-xs text-pb-muted text-center py-2">No users</p>';
+        } catch (err) {
+            list.innerHTML = `<p class="text-xs text-red-400 text-center py-2">${err.message}</p>`;
+        }
+    }
+
+    async function handleInviteAdmin() {
+        const email = document.getElementById('invite-email')?.value?.trim();
+        const status = document.getElementById('invite-status');
+        if (!email) return;
+
+        try {
+            await PBAuth.api('/admin/invite', { method: 'POST', body: { email } });
+            if (status) {
+                status.className = 'text-xs mt-1 text-green-400';
+                status.textContent = `Invited ${email} — temporary password sent via email`;
+                status.classList.remove('hidden');
+            }
+            document.getElementById('invite-email').value = '';
+            loadAdmins();
+        } catch (err) {
+            if (status) {
+                status.className = 'text-xs mt-1 text-red-400';
+                status.textContent = err.message;
+                status.classList.remove('hidden');
+            }
         }
     }
 

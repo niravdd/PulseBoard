@@ -127,110 +127,86 @@ def _resolve_project(api_key: str) -> dict | None:
 
 
 def _increment_aggregate(project_id, period_key, event_type, distinct_id, version, os_name, country, cost_usd=Decimal(0), model=""):
-    """Atomically increment counters and add to sets for the given time period.
+    """Atomically increment counters and update breakdown maps.
 
-    Aggregates table schema:
-      pk: {project_id}
-      sk: {period_key}  (e.g. "day#2026-03-23", "week#2026-W12", "month#2026-03")
-
-    Stored attributes:
-      total_events: atomic counter
-      total_cost_usd: accumulated cost
-      unique_ids: string set of distinct_ids
-      versions: map of {version: count}
-      os_breakdown: map of {os: count}
-      countries: map of {country: count}
-      event_types: map of {event_type: count}
+    Two-step approach to avoid DynamoDB nested map initialization issues:
+    Step 1: Ensure the item exists with all map fields initialized.
+    Step 2: Increment counters and add to breakdown maps.
     """
     table = aggregates_table()
+    key = {"pk": project_id, "sk": period_key}
 
-    update_parts = [
-        "SET total_events = if_not_exists(total_events, :zero) + :one",
-        "total_cost_usd = if_not_exists(total_cost_usd, :zero) + :cost",
-        "project_name = if_not_exists(project_name, :empty)",
+    # Step 1: Ensure item + empty maps exist (idempotent — only sets if missing)
+    try:
+        table.update_item(
+            Key=key,
+            UpdateExpression=(
+                "SET versions = if_not_exists(versions, :em), "
+                "os_breakdown = if_not_exists(os_breakdown, :em), "
+                "countries = if_not_exists(countries, :em), "
+                "event_types = if_not_exists(event_types, :em), "
+                "models = if_not_exists(models, :em), "
+                "total_events = if_not_exists(total_events, :zero), "
+                "total_cost_usd = if_not_exists(total_cost_usd, :zero)"
+            ),
+            ExpressionAttributeValues={":em": {}, ":zero": Decimal(0)},
+        )
+    except Exception:
+        pass
+
+    # Step 2: Increment counters + update maps (item guaranteed to exist now)
+    set_parts = [
+        "total_events = total_events + :one",
+        "total_cost_usd = total_cost_usd + :cost",
     ]
     attr_values = {
-        ":zero": Decimal(0),
         ":one": Decimal(1),
         ":cost": cost_usd,
-        ":empty": "",
-        ":did": set([distinct_id]) if distinct_id else set(["anonymous"]),
+        ":did": set([distinct_id or "anonymous"]),
     }
     attr_names = {}
 
-    # Unique IDs as a string set
-    update_parts.append("ADD unique_ids :did")
-
-    # Version breakdown (map counter)
     if version:
-        safe_ver = version.replace(".", "_")
-        update_parts[0] += f", versions.#v_{safe_ver} = if_not_exists(versions.#v_{safe_ver}, :zero) + :one"
-        update_parts.insert(1, "versions = if_not_exists(versions, :empty_map)")
-        attr_names[f"#v_{safe_ver}"] = version
-        attr_values[":empty_map"] = {}
+        set_parts.append(f"versions.#ver = if_not_exists(versions.#ver, :zero) + :one")
+        attr_names["#ver"] = version
+        attr_values[":zero"] = Decimal(0)
 
-    # OS breakdown
     if os_name:
-        safe_os = os_name.replace(" ", "_").replace(".", "_")
-        if ":empty_map" not in attr_values:
-            attr_values[":empty_map"] = {}
-        update_parts[0] += f", os_breakdown.#os_{safe_os} = if_not_exists(os_breakdown.#os_{safe_os}, :zero) + :one"
-        if "os_breakdown = if_not_exists(os_breakdown, :empty_map)" not in update_parts:
-            update_parts.insert(1, "os_breakdown = if_not_exists(os_breakdown, :empty_map)")
-        attr_names[f"#os_{safe_os}"] = os_name
+        set_parts.append(f"os_breakdown.#osn = if_not_exists(os_breakdown.#osn, :zero) + :one")
+        attr_names["#osn"] = os_name
+        if ":zero" not in attr_values:
+            attr_values[":zero"] = Decimal(0)
 
-    # Country breakdown
     if country:
-        safe_country = country.replace(" ", "_").replace(".", "_")
-        if ":empty_map" not in attr_values:
-            attr_values[":empty_map"] = {}
-        update_parts[0] += f", countries.#c_{safe_country} = if_not_exists(countries.#c_{safe_country}, :zero) + :one"
-        if "countries = if_not_exists(countries, :empty_map)" not in update_parts:
-            update_parts.insert(1, "countries = if_not_exists(countries, :empty_map)")
-        attr_names[f"#c_{safe_country}"] = country
+        set_parts.append(f"countries.#cty = if_not_exists(countries.#cty, :zero) + :one")
+        attr_names["#cty"] = country
+        if ":zero" not in attr_values:
+            attr_values[":zero"] = Decimal(0)
 
-    # Event type breakdown
     if event_type:
-        safe_et = event_type.replace(" ", "_").replace(".", "_")
-        if ":empty_map" not in attr_values:
-            attr_values[":empty_map"] = {}
-        update_parts[0] += f", event_types.#et_{safe_et} = if_not_exists(event_types.#et_{safe_et}, :zero) + :one"
-        if "event_types = if_not_exists(event_types, :empty_map)" not in update_parts:
-            update_parts.insert(1, "event_types = if_not_exists(event_types, :empty_map)")
-        attr_names[f"#et_{safe_et}"] = event_type
+        set_parts.append(f"event_types.#evt = if_not_exists(event_types.#evt, :zero) + :one")
+        attr_names["#evt"] = event_type
+        if ":zero" not in attr_values:
+            attr_values[":zero"] = Decimal(0)
 
-    # Model breakdown
     if model:
-        safe_model = model.replace(" ", "_").replace(".", "_").replace("-", "_")
-        if ":empty_map" not in attr_values:
-            attr_values[":empty_map"] = {}
-        update_parts[0] += f", models.#m_{safe_model} = if_not_exists(models.#m_{safe_model}, :zero) + :one"
-        if "models = if_not_exists(models, :empty_map)" not in update_parts:
-            update_parts.insert(1, "models = if_not_exists(models, :empty_map)")
-        attr_names[f"#m_{safe_model}"] = model
+        set_parts.append(f"models.#mdl = if_not_exists(models.#mdl, :zero) + :one")
+        attr_names["#mdl"] = model
+        if ":zero" not in attr_values:
+            attr_values[":zero"] = Decimal(0)
 
-    # DynamoDB update expressions need SET and ADD separated
-    set_parts = [p for p in update_parts if not p.startswith("ADD")]
-    add_parts = [p for p in update_parts if p.startswith("ADD")]
-
-    expression = ", ".join(set_parts)
-    if add_parts:
-        expression += " " + " ".join(add_parts)
-
-    kwargs = {
-        "Key": {"pk": project_id, "sk": period_key},
-        "UpdateExpression": expression,
-        "ExpressionAttributeValues": attr_values,
-    }
-    if attr_names:
-        kwargs["ExpressionAttributeNames"] = attr_names
+    expression = "SET " + ", ".join(set_parts) + " ADD unique_ids :did"
 
     try:
+        kwargs = {
+            "Key": key,
+            "UpdateExpression": expression,
+            "ExpressionAttributeValues": attr_values,
+        }
+        if attr_names:
+            kwargs["ExpressionAttributeNames"] = attr_names
         table.update_item(**kwargs)
-    except Exception:
-        # Fallback: simpler update if the complex one fails (map initialization race)
-        table.update_item(
-            Key={"pk": project_id, "sk": period_key},
-            UpdateExpression="SET total_events = if_not_exists(total_events, :zero) + :one ADD unique_ids :did",
-            ExpressionAttributeValues={":zero": Decimal(0), ":one": Decimal(1), ":did": set([distinct_id or "anonymous"])},
-        )
+    except Exception as exc:
+        # Log but don't fail the ingest
+        import logging
+        logging.getLogger(__name__).warning("Aggregate update failed for %s/%s: %s", project_id, period_key, exc)
