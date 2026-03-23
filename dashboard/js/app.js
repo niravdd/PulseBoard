@@ -362,13 +362,13 @@
         document.getElementById('stat-today').textContent = fmt(data.today?.events);
         document.getElementById('stat-today-cost').textContent = fmtCost(data.today?.cost_usd);
         document.getElementById('stat-7d').textContent = fmt(data.last_7d?.events);
-        document.getElementById('stat-7d-unique').textContent = `${fmt(data.last_7d?.unique_deployments)} unique`;
+        document.getElementById('stat-7d-unique').textContent = `${fmt(data.last_7d?.unique_deployments)} unique deployments`;
         document.getElementById('stat-7d-cost').textContent = fmtCost(data.last_7d?.cost_usd);
         document.getElementById('stat-30d').textContent = fmt(data.last_30d?.events);
-        document.getElementById('stat-30d-unique').textContent = `${fmt(data.last_30d?.unique_deployments)} unique`;
+        document.getElementById('stat-30d-unique').textContent = `${fmt(data.last_30d?.unique_deployments)} unique deployments`;
         document.getElementById('stat-30d-cost').textContent = fmtCost(data.last_30d?.cost_usd);
         document.getElementById('stat-lifetime').textContent = fmt(data.lifetime?.events);
-        document.getElementById('stat-lifetime-unique').textContent = `${fmt(data.lifetime?.unique_deployments)} unique`;
+        document.getElementById('stat-lifetime-unique').textContent = `${fmt(data.lifetime?.unique_deployments)} unique deployments`;
         document.getElementById('stat-lifetime-cost').textContent = fmtCost(data.lifetime?.cost_usd);
 
         const topVer = data.top_version?.[0];
@@ -393,8 +393,20 @@
     async function loadBreakdown(projectId) {
         const data = await PBAuth.api(`/stats/${projectId}/breakdown?${_buildDateParams()}`);
 
-        // OS doughnut
-        PBCharts.doughnut('chart-os', data.os || []);
+        // OS doughnut + count list
+        const osData = data.os || [];
+        PBCharts.doughnut('chart-os', osData);
+        const osListEl = document.getElementById('os-count-list');
+        if (osListEl) {
+            const osTotal = osData.reduce((s, o) => s + o.count, 0);
+            osListEl.innerHTML = osData.map(o => {
+                const pct = osTotal > 0 ? Math.round(o.count / osTotal * 100) : 0;
+                return `<div class="flex items-center justify-between text-xs">
+                    <span class="text-pb-text">${esc(o.name)}</span>
+                    <span class="text-pb-muted font-mono">${o.count} <span class="text-[9px]">(${pct}%)</span></span>
+                </div>`;
+            }).join('') || '<p class="text-[10px] text-pb-muted">No OS data</p>';
+        }
 
         // Version list
         const versionList = document.getElementById('version-list');

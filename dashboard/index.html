@@ -147,28 +147,49 @@
                 <!-- Stats Cards Row -->
                 <div class="grid grid-cols-2 lg:grid-cols-5 gap-4">
                     <div class="stat-card p-4 rounded-xl bg-pb-card border border-pb-border">
-                        <p class="text-xs text-pb-muted uppercase tracking-wider mb-1">Today</p>
-                        <p id="stat-today" class="text-3xl font-bold text-pb-accent">-</p>
-                        <p id="stat-today-cost" class="text-xs text-pb-muted mt-1">$0.00</p>
+                        <p class="text-[10px] text-pb-muted uppercase tracking-wider mb-2">Today</p>
+                        <div class="flex items-baseline gap-2">
+                            <p id="stat-today" class="text-2xl font-bold text-pb-accent">-</p>
+                            <span class="text-[10px] text-pb-muted">events</span>
+                        </div>
+                        <p id="stat-today-cost" class="text-[10px] text-pb-muted mt-1">$0.00</p>
                     </div>
                     <div class="stat-card p-4 rounded-xl bg-pb-card border border-pb-border">
-                        <p class="text-xs text-pb-muted uppercase tracking-wider mb-1">Last 7 Days</p>
-                        <p id="stat-7d" class="text-3xl font-bold text-pb-green">-</p>
-                        <p id="stat-7d-unique" class="text-xs text-pb-muted mt-1">- unique · <span id="stat-7d-cost">$0.00</span></p>
+                        <p class="text-[10px] text-pb-muted uppercase tracking-wider mb-2">Last 7 Days</p>
+                        <div class="flex items-baseline gap-2">
+                            <p id="stat-7d" class="text-2xl font-bold text-pb-green">-</p>
+                            <span class="text-[10px] text-pb-muted">events</span>
+                        </div>
+                        <div class="flex items-center gap-2 mt-1.5">
+                            <span id="stat-7d-unique" class="text-[10px] font-medium px-1.5 py-0.5 rounded bg-pb-green/10 text-pb-green">- unique</span>
+                            <span id="stat-7d-cost" class="text-[10px] text-pb-muted">$0.00</span>
+                        </div>
                     </div>
                     <div class="stat-card p-4 rounded-xl bg-pb-card border border-pb-border">
-                        <p class="text-xs text-pb-muted uppercase tracking-wider mb-1">Last 30 Days</p>
-                        <p id="stat-30d" class="text-3xl font-bold text-pb-amber">-</p>
-                        <p id="stat-30d-unique" class="text-xs text-pb-muted mt-1">- unique · <span id="stat-30d-cost">$0.00</span></p>
+                        <p class="text-[10px] text-pb-muted uppercase tracking-wider mb-2">Last 30 Days</p>
+                        <div class="flex items-baseline gap-2">
+                            <p id="stat-30d" class="text-2xl font-bold text-pb-amber">-</p>
+                            <span class="text-[10px] text-pb-muted">events</span>
+                        </div>
+                        <div class="flex items-center gap-2 mt-1.5">
+                            <span id="stat-30d-unique" class="text-[10px] font-medium px-1.5 py-0.5 rounded bg-pb-amber/10 text-pb-amber">- unique</span>
+                            <span id="stat-30d-cost" class="text-[10px] text-pb-muted">$0.00</span>
+                        </div>
                     </div>
                     <div class="stat-card p-4 rounded-xl bg-pb-card border border-pb-border">
-                        <p class="text-xs text-pb-muted uppercase tracking-wider mb-1">Lifetime</p>
-                        <p id="stat-lifetime" class="text-3xl font-bold text-red-400">-</p>
-                        <p id="stat-lifetime-unique" class="text-xs text-pb-muted mt-1">- unique · <span id="stat-lifetime-cost">$0.00</span></p>
+                        <p class="text-[10px] text-pb-muted uppercase tracking-wider mb-2">Lifetime</p>
+                        <div class="flex items-baseline gap-2">
+                            <p id="stat-lifetime" class="text-2xl font-bold text-red-400">-</p>
+                            <span class="text-[10px] text-pb-muted">events</span>
+                        </div>
+                        <div class="flex items-center gap-2 mt-1.5">
+                            <span id="stat-lifetime-unique" class="text-[10px] font-medium px-1.5 py-0.5 rounded bg-red-400/10 text-red-400">- unique</span>
+                            <span id="stat-lifetime-cost" class="text-[10px] text-pb-muted">$0.00</span>
+                        </div>
                     </div>
                     <div class="stat-card p-4 rounded-xl bg-pb-card border border-pb-border">
-                        <p class="text-xs text-pb-muted uppercase tracking-wider mb-1">Top Version</p>
-                        <p id="stat-version" class="text-3xl font-bold text-purple-400">-</p>
+                        <p class="text-[10px] text-pb-muted uppercase tracking-wider mb-2">Top Version</p>
+                        <p id="stat-version" class="text-2xl font-bold text-purple-400">-</p>
                         <p id="stat-os" class="text-xs text-pb-muted mt-1">-</p>
                     </div>
                 </div>
@@ -190,12 +211,15 @@
                         </div>
                     </div>
 
-                    <!-- Breakdown Pie Charts -->
-                    <div class="space-y-6">
+                    <!-- Breakdown: OS + Versions -->
+                    <div class="space-y-4">
                         <div class="p-4 rounded-xl bg-pb-card border border-pb-border">
-                            <h3 class="text-sm font-semibold mb-3">OS Distribution</h3>
-                            <div class="chart-container" style="height: 180px;">
-                                <canvas id="chart-os"></canvas>
+                            <h3 class="text-sm font-semibold mb-2">OS Distribution <span class="text-[9px] text-pb-muted font-normal">(unique deployments)</span></h3>
+                            <div class="flex gap-3">
+                                <div class="chart-container flex-shrink-0" style="height: 140px; width: 140px;">
+                                    <canvas id="chart-os"></canvas>
+                                </div>
+                                <div id="os-count-list" class="flex-1 space-y-1.5 overflow-auto pr-1"></div>
                             </div>
                         </div>
                         <div class="p-4 rounded-xl bg-pb-card border border-pb-border">
