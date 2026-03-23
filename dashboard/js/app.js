@@ -28,10 +28,24 @@
         }
         attachEvents();
 
-        // Idle detection — lightweight, single passive listener
-        for (const evt of ['mousemove', 'click', 'keydown', 'scroll', 'touchstart']) {
+        // Idle detection — only meaningful interactions (not mouse hover)
+        for (const evt of ['click', 'keydown', 'scroll', 'touchstart']) {
             document.addEventListener(evt, () => { _lastInteraction = Date.now(); }, { passive: true });
         }
+
+        // Background tab: refresh immediately when user returns after enough idle time
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'visible' && currentProject) {
+                const elapsed = Date.now() - _lastRefresh;
+                if (elapsed >= AUTO_REFRESH_MS) {
+                    _lastRefresh = Date.now();
+                    loadOverview(currentProject.project_id);
+                    loadTimeseries(currentProject.project_id);
+                    loadBreakdown(currentProject.project_id);
+                    loadEvents(currentProject.project_id);
+                }
+            }
+        });
     });
 
     function attachEvents() {
@@ -456,12 +470,16 @@
         _countdownTimer = setInterval(() => {
             const el = document.getElementById('refresh-countdown');
             if (!el) return;
+
+            // Don't update if tab is hidden (browser throttles anyway)
+            if (document.visibilityState === 'hidden') return;
+
             const elapsed = Date.now() - _lastRefresh;
             const remaining = Math.max(0, AUTO_REFRESH_MS - elapsed);
             const mins = Math.floor(remaining / 60000);
             const secs = Math.floor((remaining % 60000) / 1000);
             const idle = (Date.now() - _lastInteraction) > IDLE_THRESHOLD_MS;
-            el.textContent = idle ? `${mins}:${String(secs).padStart(2, '0')}` : 'paused';
+            el.textContent = idle ? `${mins}:${String(secs).padStart(2, '0')}` : 'active';
         }, 1000);
     }
 
