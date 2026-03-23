@@ -101,7 +101,7 @@
         </nav>
 
         <!-- Main Content -->
-        <main class="max-w-[95vw] mx-auto px-6 py-8">
+        <main class="max-w-[95vw] mx-auto px-6 py-5">
 
             <!-- No project selected -->
             <div id="no-project" class="text-center py-20">
@@ -115,7 +115,7 @@
             </div>
 
             <!-- Dashboard content (shown when project selected) -->
-            <div id="project-dashboard" class="hidden space-y-8 fade-in">
+            <div id="project-dashboard" class="hidden space-y-4 fade-in">
 
                 <!-- Period Filter + Refresh -->
                 <div class="flex flex-wrap items-center gap-2">
@@ -146,27 +146,27 @@
 
                 <!-- Stats Cards Row -->
                 <div class="grid grid-cols-2 lg:grid-cols-5 gap-4">
-                    <div class="stat-card p-5 rounded-xl bg-pb-card border border-pb-border">
+                    <div class="stat-card p-4 rounded-xl bg-pb-card border border-pb-border">
                         <p class="text-xs text-pb-muted uppercase tracking-wider mb-1">Today</p>
                         <p id="stat-today" class="text-3xl font-bold text-pb-accent">-</p>
                         <p id="stat-today-cost" class="text-xs text-pb-muted mt-1">$0.00</p>
                     </div>
-                    <div class="stat-card p-5 rounded-xl bg-pb-card border border-pb-border">
+                    <div class="stat-card p-4 rounded-xl bg-pb-card border border-pb-border">
                         <p class="text-xs text-pb-muted uppercase tracking-wider mb-1">Last 7 Days</p>
                         <p id="stat-7d" class="text-3xl font-bold text-pb-green">-</p>
                         <p id="stat-7d-unique" class="text-xs text-pb-muted mt-1">- unique · <span id="stat-7d-cost">$0.00</span></p>
                     </div>
-                    <div class="stat-card p-5 rounded-xl bg-pb-card border border-pb-border">
+                    <div class="stat-card p-4 rounded-xl bg-pb-card border border-pb-border">
                         <p class="text-xs text-pb-muted uppercase tracking-wider mb-1">Last 30 Days</p>
                         <p id="stat-30d" class="text-3xl font-bold text-pb-amber">-</p>
                         <p id="stat-30d-unique" class="text-xs text-pb-muted mt-1">- unique · <span id="stat-30d-cost">$0.00</span></p>
                     </div>
-                    <div class="stat-card p-5 rounded-xl bg-pb-card border border-pb-border">
+                    <div class="stat-card p-4 rounded-xl bg-pb-card border border-pb-border">
                         <p class="text-xs text-pb-muted uppercase tracking-wider mb-1">Lifetime</p>
                         <p id="stat-lifetime" class="text-3xl font-bold text-red-400">-</p>
                         <p id="stat-lifetime-unique" class="text-xs text-pb-muted mt-1">- unique · <span id="stat-lifetime-cost">$0.00</span></p>
                     </div>
-                    <div class="stat-card p-5 rounded-xl bg-pb-card border border-pb-border">
+                    <div class="stat-card p-4 rounded-xl bg-pb-card border border-pb-border">
                         <p class="text-xs text-pb-muted uppercase tracking-wider mb-1">Top Version</p>
                         <p id="stat-version" class="text-3xl font-bold text-purple-400">-</p>
                         <p id="stat-os" class="text-xs text-pb-muted mt-1">-</p>
@@ -174,9 +174,9 @@
                 </div>
 
                 <!-- Charts Row -->
-                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
                     <!-- Timeseries Chart -->
-                    <div class="lg:col-span-2 p-5 rounded-xl bg-pb-card border border-pb-border">
+                    <div class="lg:col-span-2 p-4 rounded-xl bg-pb-card border border-pb-border">
                         <div class="flex items-center justify-between mb-4">
                             <h3 class="text-sm font-semibold">Events Over Time</h3>
                             <select id="chart-period" class="px-2 py-1 rounded bg-pb-bg border border-pb-border text-xs focus:outline-none">
@@ -192,13 +192,13 @@
 
                     <!-- Breakdown Pie Charts -->
                     <div class="space-y-6">
-                        <div class="p-5 rounded-xl bg-pb-card border border-pb-border">
+                        <div class="p-4 rounded-xl bg-pb-card border border-pb-border">
                             <h3 class="text-sm font-semibold mb-3">OS Distribution</h3>
                             <div class="chart-container" style="height: 180px;">
                                 <canvas id="chart-os"></canvas>
                             </div>
                         </div>
-                        <div class="p-5 rounded-xl bg-pb-card border border-pb-border">
+                        <div class="p-4 rounded-xl bg-pb-card border border-pb-border">
                             <h3 class="text-sm font-semibold mb-3">Versions</h3>
                             <div id="version-list" class="space-y-2 max-h-40 overflow-auto pr-2"></div>
                         </div>
@@ -206,31 +206,31 @@
                 </div>
 
                 <!-- Middle Row: Models + Event Types -->
-                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    <div class="p-5 rounded-xl bg-pb-card border border-pb-border">
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                    <div class="p-4 rounded-xl bg-pb-card border border-pb-border">
                         <h3 class="text-sm font-semibold mb-3">Models Used</h3>
                         <div id="model-list" class="space-y-2 max-h-48 overflow-auto pr-2"></div>
                     </div>
-                    <div class="p-5 rounded-xl bg-pb-card border border-pb-border">
+                    <div class="p-4 rounded-xl bg-pb-card border border-pb-border">
                         <h3 class="text-sm font-semibold mb-3">Event Types</h3>
                         <div id="event-type-list" class="space-y-2 max-h-48 overflow-auto pr-2"></div>
                     </div>
                 </div>
 
                 <!-- Bottom Row: Countries + Recent Events -->
-                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    <div class="p-5 rounded-xl bg-pb-card border border-pb-border">
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                    <div class="p-4 rounded-xl bg-pb-card border border-pb-border">
                         <h3 class="text-sm font-semibold mb-3">Countries</h3>
                         <div id="country-list" class="space-y-2 max-h-64 overflow-auto pr-2"></div>
                     </div>
-                    <div class="p-5 rounded-xl bg-pb-card border border-pb-border">
+                    <div class="p-4 rounded-xl bg-pb-card border border-pb-border">
                         <h3 class="text-sm font-semibold mb-3">Recent Events</h3>
                         <div id="events-list" class="space-y-1.5 max-h-96 overflow-auto text-xs pr-2 pb-2"></div>
                     </div>
                 </div>
 
                 <!-- Total Cost Banner -->
-                <div class="p-5 rounded-xl bg-gradient-to-r from-pb-accent/10 to-purple-500/10 border border-pb-accent/20">
+                <div class="p-4 rounded-xl bg-gradient-to-r from-pb-accent/10 to-purple-500/10 border border-pb-accent/20">
                     <div class="flex items-center justify-between">
                         <div>
                             <h3 class="text-sm font-semibold">Estimated AWS Spend (selected period)</h3>
@@ -241,7 +241,7 @@
                 </div>
 
                 <!-- Project Settings -->
-                <div class="p-5 rounded-xl bg-pb-card border border-pb-border">
+                <div class="p-4 rounded-xl bg-pb-card border border-pb-border">
                     <h3 class="text-sm font-semibold mb-3">Project Settings</h3>
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
                         <div>
