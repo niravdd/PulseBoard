@@ -187,13 +187,47 @@ def _breakdown(project_id, qs):
         for m, c in (d.get("models") or {}).items():
             models[m] = models.get(m, 0) + _dec(c)
 
+    # Query raw events for unique deployment counts per dimension
+    # This gives accurate "unique users per country" etc.
+    unique_countries = {}
+    unique_os = {}
+    unique_versions = {}
+    try:
+        raw_kwargs = {"KeyConditionExpression": Key("project_id").eq(project_id)}
+        if date_from != "0000-01-01":
+            raw_kwargs["FilterExpression"] = Key("event_date").between(date_from, date_to.rstrip("~"))
+        raw_items = []
+        while True:
+            result = events_table().query(**raw_kwargs, ProjectionExpression="distinct_id, country, os, version")
+            raw_items.extend(result.get("Items", []))
+            if "LastEvaluatedKey" not in result:
+                break
+            raw_kwargs["ExclusiveStartKey"] = result["LastEvaluatedKey"]
+
+        for item in raw_items:
+            did = item.get("distinct_id", "")
+            c = item.get("country", "")
+            o = item.get("os", "")
+            v = item.get("version", "")
+            if c:
+                unique_countries.setdefault(c, set()).add(did)
+            if o:
+                unique_os.setdefault(o, set()).add(did)
+            if v:
+                unique_versions.setdefault(v, set()).add(did)
+    except Exception:
+        pass  # Fallback to event counts if raw query fails
+
+    def _unique_map(m):
+        return sorted([{"name": k, "count": len(v)} for k, v in m.items()], key=lambda x: x["count"], reverse=True)
+
     return ok({
         "project_id": project_id,
         "date_range": {"from": date_from, "to": date_to},
         "total_cost_usd": round(total_cost, 4),
-        "versions": _sorted_map(versions),
-        "os": _sorted_map(os_breakdown),
-        "countries": _sorted_map(countries),
+        "versions": _unique_map(unique_versions) if unique_versions else _sorted_map(versions),
+        "os": _unique_map(unique_os) if unique_os else _sorted_map(os_breakdown),
+        "countries": _unique_map(unique_countries) if unique_countries else _sorted_map(countries),
         "event_types": _sorted_map(event_types),
         "models": _sorted_map(models),
     })
