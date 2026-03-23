@@ -42,6 +42,8 @@ def handler(event, context):
         return _breakdown(project_id, qs)
     if path.endswith("/events"):
         return _events(project_id, qs)
+    if path.endswith("/github"):
+        return _github(project_id, qs)
     if path.endswith("/purge") and method == "DELETE":
         return _purge(project_id, qs)
 
@@ -228,6 +230,56 @@ def _events(project_id, qs):
 
 
 # ── Helpers ──────────────────────────────────────────────────────────
+
+def _github(project_id, qs):
+    """Return GitHub traffic data: summary + daily clones/views timeseries."""
+    # Fetch summary
+    summary_result = aggregates_table().get_item(
+        Key={"pk": project_id, "sk": "github#summary"},
+    )
+    summary = summary_result.get("Item", {})
+
+    # Fetch daily GitHub traffic
+    gh_days = _query_all(project_id, "ghday#", "ghday#9999")
+    daily = []
+    for d in sorted(gh_days, key=lambda x: x.get("sk", "")):
+        date = d.get("sk", "").replace("ghday#", "")
+        daily.append({
+            "date": date,
+            "clones": _dec(d.get("gh_clones", 0)),
+            "clones_unique": _dec(d.get("gh_clones_unique", 0)),
+            "views": _dec(d.get("gh_views", 0)),
+            "views_unique": _dec(d.get("gh_views_unique", 0)),
+        })
+
+    # Parse referrers and paths from JSON strings
+    referrers = []
+    paths = []
+    try:
+        referrers = json.loads(summary.get("gh_referrers", "[]"))
+    except Exception:
+        pass
+    try:
+        paths = json.loads(summary.get("gh_popular_paths", "[]"))
+    except Exception:
+        pass
+
+    return ok({
+        "project_id": project_id,
+        "stars": _dec(summary.get("gh_stars", 0)),
+        "forks": _dec(summary.get("gh_forks", 0)),
+        "watchers": _dec(summary.get("gh_watchers", 0)),
+        "open_issues": _dec(summary.get("gh_open_issues", 0)),
+        "total_clones_14d": _dec(summary.get("gh_total_clones", 0)),
+        "unique_cloners_14d": _dec(summary.get("gh_unique_cloners", 0)),
+        "total_views_14d": _dec(summary.get("gh_total_views", 0)),
+        "unique_visitors_14d": _dec(summary.get("gh_unique_visitors", 0)),
+        "referrers": referrers,
+        "popular_paths": paths,
+        "daily": daily,
+        "fetched_at": summary.get("gh_fetched_at", ""),
+    })
+
 
 def _purge(project_id, qs):
     """Delete all events and aggregates for a project. Requires ?confirm=yes."""

@@ -240,6 +240,52 @@
                     </div>
                 </div>
 
+                <!-- GitHub Traffic (shown when repo is configured) -->
+                <div id="github-section" class="hidden">
+                    <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                        <div class="stat-card p-4 rounded-xl bg-pb-card border border-pb-border">
+                            <p class="text-[10px] text-pb-muted uppercase tracking-wider mb-1">GitHub Stars</p>
+                            <p id="gh-stars" class="text-2xl font-bold text-pb-amber">-</p>
+                        </div>
+                        <div class="stat-card p-4 rounded-xl bg-pb-card border border-pb-border">
+                            <p class="text-[10px] text-pb-muted uppercase tracking-wider mb-1">Clones (14d)</p>
+                            <p id="gh-clones" class="text-2xl font-bold text-pb-accent">-</p>
+                            <p id="gh-clones-unique" class="text-[10px] text-pb-muted mt-0.5">- unique</p>
+                        </div>
+                        <div class="stat-card p-4 rounded-xl bg-pb-card border border-pb-border">
+                            <p class="text-[10px] text-pb-muted uppercase tracking-wider mb-1">Views (14d)</p>
+                            <p id="gh-views" class="text-2xl font-bold text-pb-green">-</p>
+                            <p id="gh-views-unique" class="text-[10px] text-pb-muted mt-0.5">- unique</p>
+                        </div>
+                        <div class="stat-card p-4 rounded-xl bg-pb-card border border-pb-border">
+                            <p class="text-[10px] text-pb-muted uppercase tracking-wider mb-1">Forks / Issues</p>
+                            <p id="gh-forks" class="text-2xl font-bold text-purple-400">-</p>
+                            <p id="gh-issues" class="text-[10px] text-pb-muted mt-0.5">- open issues</p>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-4">
+                        <div class="p-4 rounded-xl bg-pb-card border border-pb-border">
+                            <h3 class="text-sm font-semibold mb-2">GitHub Clones & Views</h3>
+                            <div class="chart-container" style="height: 200px;">
+                                <canvas id="chart-github"></canvas>
+                            </div>
+                        </div>
+                        <div class="p-4 rounded-xl bg-pb-card border border-pb-border">
+                            <div class="grid grid-cols-2 gap-4">
+                                <div>
+                                    <h3 class="text-sm font-semibold mb-2">Top Referrers</h3>
+                                    <div id="gh-referrers" class="space-y-1 max-h-40 overflow-auto pr-2 text-xs"></div>
+                                </div>
+                                <div>
+                                    <h3 class="text-sm font-semibold mb-2">Popular Pages</h3>
+                                    <div id="gh-paths" class="space-y-1 max-h-40 overflow-auto pr-2 text-xs"></div>
+                                </div>
+                            </div>
+                            <p id="gh-fetched-at" class="text-[9px] text-pb-muted mt-2"></p>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Project Settings -->
                 <div class="p-4 rounded-xl bg-pb-card border border-pb-border">
                     <h3 class="text-sm font-semibold mb-3">Project Settings</h3>
@@ -262,8 +308,27 @@
                             <button id="btn-delete-project" class="ml-2 px-3 py-1 rounded bg-pb-red/10 text-pb-red text-xs hover:bg-pb-red/20 transition-colors">Delete Project</button>
                         </div>
                     </div>
+                    <!-- GitHub Repo -->
+                    <div class="mt-4 pt-3 border-t border-pb-border">
+                        <h4 class="text-xs text-pb-muted uppercase tracking-wider mb-2">GitHub Integration</h4>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            <div>
+                                <label class="block text-[10px] text-pb-muted mb-1">Repository (owner/repo)</label>
+                                <input type="text" id="project-github-repo" class="w-full px-3 py-1.5 rounded-lg bg-pb-bg border border-pb-border text-sm text-pb-text focus:border-pb-accent focus:outline-none" placeholder="username/my-project">
+                            </div>
+                            <div>
+                                <label class="block text-[10px] text-pb-muted mb-1">GitHub Token (PAT with repo scope)</label>
+                                <input type="password" id="project-github-token" class="w-full px-3 py-1.5 rounded-lg bg-pb-bg border border-pb-border text-sm text-pb-text focus:border-pb-accent focus:outline-none" placeholder="ghp_...">
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-2 mt-2">
+                            <button id="btn-save-github" class="px-3 py-1 rounded bg-pb-accent/10 text-pb-accent text-xs font-medium hover:bg-pb-accent/20 transition-colors">Save & Validate</button>
+                            <button id="btn-fetch-github" class="px-3 py-1 rounded bg-pb-bg border border-pb-border text-xs text-pb-muted hover:border-pb-accent transition-colors">Fetch Traffic Now</button>
+                            <span id="github-status" class="text-[10px]"></span>
+                        </div>
+                    </div>
                     <!-- SDK snippet -->
-                    <div class="mt-4">
+                    <div class="mt-4 pt-3 border-t border-pb-border">
                         <h4 class="text-xs text-pb-muted uppercase tracking-wider mb-2">Quick Integration (Python)</h4>
                         <pre id="sdk-snippet" class="bg-pb-bg p-3 rounded-lg text-xs font-mono text-pb-text/70 overflow-x-auto select-all"></pre>
                     </div>

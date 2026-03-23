@@ -122,6 +122,48 @@
             });
         },
 
+        /**
+         * Render GitHub traffic chart (clones + views over time).
+         */
+        githubTraffic(canvasId, daily) {
+            const ctx = document.getElementById(canvasId);
+            if (!ctx) return;
+            if (this._instances[canvasId]) this._instances[canvasId].destroy();
+
+            this._instances[canvasId] = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: daily.map(d => d.date),
+                    datasets: [
+                        {
+                            label: 'Clones',
+                            data: daily.map(d => d.clones || 0),
+                            backgroundColor: COLORS.accent,
+                            borderRadius: 3,
+                        },
+                        {
+                            label: 'Views',
+                            data: daily.map(d => d.views || 0),
+                            backgroundColor: COLORS.green,
+                            borderRadius: 3,
+                        },
+                    ],
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'top', labels: { usePointStyle: true, pointStyle: 'circle', padding: 12, font: { size: 10 } } },
+                        tooltip: { backgroundColor: '#1a1f35', borderColor: '#2d3555', borderWidth: 1, cornerRadius: 8 },
+                    },
+                    scales: {
+                        x: { grid: { display: false }, ticks: { maxRotation: 45, font: { size: 9 } } },
+                        y: { beginAtZero: true, grid: { color: COLORS.grid } },
+                    },
+                },
+            });
+        },
+
         destroyAll() {
             Object.values(this._instances).forEach(c => c.destroy());
             this._instances = {};

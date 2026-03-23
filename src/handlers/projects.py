@@ -55,6 +55,10 @@ def handler(event, context):
         return _invite_admin(event)
     if method == "GET" and "admin/users" in path:
         return _list_admins()
+    if method == "PATCH" and project_id:
+        if role != "Admin":
+            return error("Admin access required to edit projects", 403)
+        return _update(project_id, event)
     if method == "POST":
         if role != "Admin":
             return error("Admin access required to create projects", 403)
@@ -81,6 +85,13 @@ def _create(event):
     api_key = f"pb_{uuid.uuid4().hex}"
     now = datetime.now(timezone.utc).isoformat()
 
+    # Optional GitHub repo (owner/repo format)
+    github_repo = body.get("github_repo", "").strip()
+    github_token = body.get("github_token", "").strip()
+    github_status = {}
+    if github_repo:
+        github_status = _validate_github(github_repo, github_token)
+
     item = {
         "project_id": project_id,
         "name": name,
@@ -88,6 +99,9 @@ def _create(event):
         "api_key": api_key,
         "created_at": now,
         "updated_at": now,
+        "github_repo": github_repo,
+        "github_token": github_token,
+        "github_status": github_status,
         "settings": {
             "retention_days": body.get("retention_days", 365),
             "allowed_events": body.get("allowed_events", []),
@@ -123,6 +137,104 @@ def _get(project_id):
 def _delete(project_id):
     projects_table().delete_item(Key={"project_id": project_id})
     return ok({"deleted": project_id})
+
+
+def _update(project_id, event):
+    """Update a project — name, description, GitHub repo, token."""
+    body = parse_body(event)
+    now = datetime.now(timezone.utc).isoformat()
+
+    updates = {"updated_at": now}
+    if "name" in body:
+        updates["name"] = body["name"].strip()
+    if "description" in body:
+        updates["description"] = body["description"].strip()
+    if "github_repo" in body:
+        updates["github_repo"] = body["github_repo"].strip()
+    if "github_token" in body:
+        updates["github_token"] = body["github_token"].strip()
+
+    # Validate GitHub if repo is provided/changed
+    repo = updates.get("github_repo") or body.get("github_repo", "")
+    token = updates.get("github_token") or body.get("github_token", "")
+    if repo:
+        # If only repo changed, try to get existing token
+        if not token:
+            existing = projects_table().get_item(Key={"project_id": project_id}).get("Item", {})
+            token = existing.get("github_token", "")
+        updates["github_status"] = _validate_github(repo, token)
+
+    # Build DynamoDB update expression
+    set_parts = []
+    attr_values = {}
+    for k, v in updates.items():
+        safe_key = k.replace("#", "_")
+        set_parts.append(f"#{safe_key} = :{safe_key}")
+        attr_values[f":{safe_key}"] = v
+
+    try:
+        projects_table().update_item(
+            Key={"project_id": project_id},
+            UpdateExpression="SET " + ", ".join(set_parts),
+            ExpressionAttributeNames={f"#{k.replace('#', '_')}": k for k in updates},
+            ExpressionAttributeValues=attr_values,
+            ConditionExpression="attribute_exists(project_id)",
+        )
+    except Exception:
+        return error("Project not found", 404)
+
+    # Return the full updated project
+    result = projects_table().get_item(Key={"project_id": project_id})
+    return ok(result.get("Item", {}))
+
+
+def _validate_github(repo: str, token: str) -> dict:
+    """Validate GitHub repo access and fetch basic info.
+
+    Returns a status dict with repo info or error details.
+    """
+    import urllib.request
+    import urllib.error
+
+    if "/" not in repo:
+        return {"valid": False, "error": "Format must be owner/repo"}
+
+    headers = {"Accept": "application/vnd.github.v3+json", "User-Agent": "PulseBoard"}
+    if token:
+        headers["Authorization"] = f"token {token}"
+
+    # Check repo exists and is accessible
+    try:
+        req = urllib.request.Request(f"https://api.github.com/repos/{repo}", headers=headers)
+        resp = urllib.request.urlopen(req, timeout=10)
+        data = json.loads(resp.read().decode())
+        result = {
+            "valid": True,
+            "full_name": data.get("full_name", repo),
+            "private": data.get("private", False),
+            "stars": data.get("stargazers_count", 0),
+            "forks": data.get("forks_count", 0),
+            "language": data.get("language", ""),
+        }
+
+        # Test traffic API access (requires push access or admin)
+        try:
+            treq = urllib.request.Request(f"https://api.github.com/repos/{repo}/traffic/views", headers=headers)
+            urllib.request.urlopen(treq, timeout=10)
+            result["traffic_access"] = True
+        except urllib.error.HTTPError as e:
+            result["traffic_access"] = False
+            result["traffic_error"] = f"HTTP {e.code}" if e.code == 403 else str(e)
+
+        return result
+    except urllib.error.HTTPError as e:
+        if e.code == 404:
+            return {"valid": False, "error": "Repository not found (may be private — provide a token)"}
+        if e.code == 401:
+            return {"valid": False, "error": "Invalid GitHub token"}
+        return {"valid": False, "error": f"GitHub API error: HTTP {e.code}"}
+    except Exception as exc:
+        return {"valid": False, "error": str(exc)}
 
 
 def _invite_admin(event):

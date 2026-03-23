@@ -150,6 +150,10 @@
         });
         document.getElementById('btn-regen-key')?.addEventListener('click', handleRegenKey);
         document.getElementById('btn-delete-project')?.addEventListener('click', handleDeleteProject);
+
+        // GitHub integration
+        document.getElementById('btn-save-github')?.addEventListener('click', handleSaveGitHub);
+        document.getElementById('btn-fetch-github')?.addEventListener('click', handleFetchGitHub);
     }
 
     // ── Auth ─────────────────────────────────────────────────────────
@@ -255,13 +259,25 @@
                 `pb = PulseBoard(api_key="${project.api_key}", endpoint="${baseUrl}/ingest")\n` +
                 `pb.startup(version="1.0")`;
 
+            // GitHub fields
+            const ghRepo = document.getElementById('project-github-repo');
+            const ghToken = document.getElementById('project-github-token');
+            if (ghRepo) ghRepo.value = project.github_repo || '';
+            if (ghToken) ghToken.value = project.github_token ? '••••••••' : '';
+
             // Load data
-            await Promise.all([
+            const loads = [
                 loadOverview(projectId),
                 loadTimeseries(projectId),
                 loadBreakdown(projectId),
                 loadEvents(projectId),
-            ]);
+            ];
+            if (project.github_repo) {
+                loads.push(loadGitHub(projectId));
+            } else {
+                document.getElementById('github-section')?.classList.add('hidden');
+            }
+            await Promise.all(loads);
         } catch (err) {
             console.error('Failed to load project:', err);
         }
@@ -444,6 +460,93 @@
             document.getElementById('no-project')?.classList.remove('hidden');
         } catch (err) {
             alert('Failed: ' + err.message);
+        }
+    }
+
+    // ── GitHub Integration ─────────────────────────────────────────
+
+    async function loadGitHub(projectId) {
+        try {
+            const data = await PBAuth.api(`/stats/${projectId}/github`);
+            const section = document.getElementById('github-section');
+            if (!section) return;
+            section.classList.remove('hidden');
+
+            document.getElementById('gh-stars').textContent = (data.stars || 0).toLocaleString();
+            document.getElementById('gh-clones').textContent = (data.total_clones_14d || 0).toLocaleString();
+            document.getElementById('gh-clones-unique').textContent = `${data.unique_cloners_14d || 0} unique`;
+            document.getElementById('gh-views').textContent = (data.total_views_14d || 0).toLocaleString();
+            document.getElementById('gh-views-unique').textContent = `${data.unique_visitors_14d || 0} unique`;
+            document.getElementById('gh-forks').textContent = (data.forks || 0).toLocaleString();
+            document.getElementById('gh-issues').textContent = `${data.open_issues || 0} open issues`;
+
+            if (data.fetched_at) {
+                document.getElementById('gh-fetched-at').textContent = `Last fetched: ${new Date(data.fetched_at).toLocaleString()}`;
+            }
+
+            // Referrers
+            const refEl = document.getElementById('gh-referrers');
+            if (refEl) {
+                refEl.innerHTML = (data.referrers || []).map(r => `
+                    <div class="flex justify-between"><span>${esc(r.referrer)}</span><span class="text-pb-muted">${r.count} (${r.uniques} unique)</span></div>
+                `).join('') || '<p class="text-pb-muted">No referrer data</p>';
+            }
+
+            // Popular paths
+            const pathEl = document.getElementById('gh-paths');
+            if (pathEl) {
+                pathEl.innerHTML = (data.popular_paths || []).map(p => `
+                    <div class="flex justify-between"><span class="truncate mr-2">${esc(p.path)}</span><span class="text-pb-muted flex-shrink-0">${p.count}</span></div>
+                `).join('') || '<p class="text-pb-muted">No path data</p>';
+            }
+
+            // GitHub traffic chart
+            if (data.daily && data.daily.length > 0) {
+                PBCharts.githubTraffic('chart-github', data.daily);
+            }
+        } catch (err) {
+            console.error('GitHub data load failed:', err);
+        }
+    }
+
+    async function handleSaveGitHub() {
+        if (!currentProject) return;
+        const repo = document.getElementById('project-github-repo')?.value?.trim();
+        const tokenInput = document.getElementById('project-github-token')?.value?.trim();
+        const status = document.getElementById('github-status');
+        // Don't send masked token back
+        const token = tokenInput && !tokenInput.startsWith('••') ? tokenInput : undefined;
+
+        const body = { github_repo: repo };
+        if (token !== undefined) body.github_token = token;
+
+        if (status) { status.textContent = 'Validating...'; status.className = 'text-[10px] text-pb-accent'; }
+
+        try {
+            const result = await PBAuth.api(`/projects/${currentProject.project_id}`, { method: 'PATCH', body });
+            currentProject = result;
+            const gs = result.github_status || {};
+            if (gs.valid) {
+                if (status) { status.textContent = `Connected: ${gs.full_name} (${gs.stars} stars)${gs.traffic_access ? ' — traffic access OK' : ' — no traffic access (need push/admin permission)'}`; status.className = 'text-[10px] text-green-400'; }
+                loadGitHub(currentProject.project_id);
+            } else {
+                if (status) { status.textContent = gs.error || 'Validation failed'; status.className = 'text-[10px] text-red-400'; }
+            }
+        } catch (err) {
+            if (status) { status.textContent = err.message; status.className = 'text-[10px] text-red-400'; }
+        }
+    }
+
+    async function handleFetchGitHub() {
+        if (!currentProject) return;
+        const status = document.getElementById('github-status');
+        if (status) { status.textContent = 'Fetching traffic...'; status.className = 'text-[10px] text-pb-accent'; }
+        try {
+            await PBAuth.api('/github/fetch', { method: 'POST' });
+            if (status) { status.textContent = 'Traffic data fetched'; status.className = 'text-[10px] text-green-400'; }
+            loadGitHub(currentProject.project_id);
+        } catch (err) {
+            if (status) { status.textContent = err.message; status.className = 'text-[10px] text-red-400'; }
         }
     }
 
