@@ -17,6 +17,7 @@ from decimal import Decimal
 import sys, os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from shared.db import projects_table, aggregates_table
+from shared.response import ok
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -45,7 +46,11 @@ def handler(event, context):
             errors += 1
 
     logger.info("GitHub traffic fetch complete: %d fetched, %d errors", fetched, errors)
-    return {"fetched": fetched, "errors": errors}
+    result = {"fetched": fetched, "errors": errors}
+    # Return API Gateway format if called via HTTP, plain dict if called by EventBridge
+    if event.get("httpMethod"):
+        return ok(result)
+    return result
 
 
 def _fetch_and_store(project_id: str, repo: str, token: str):

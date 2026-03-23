@@ -272,7 +272,10 @@
             const ghRepo = document.getElementById('project-github-repo');
             const ghToken = document.getElementById('project-github-token');
             if (ghRepo) ghRepo.value = project.github_repo || '';
-            if (ghToken) ghToken.value = project.github_token ? '••••••••' : '';
+            if (ghToken) {
+                ghToken.value = '';
+                ghToken.placeholder = project.github_token_set ? 'Token saved — enter new to replace' : 'ghp_... or github_pat_...';
+            }
 
             // Load data
             const loads = [
@@ -535,11 +538,10 @@
         const repo = document.getElementById('project-github-repo')?.value?.trim();
         const tokenInput = document.getElementById('project-github-token')?.value?.trim();
         const status = document.getElementById('github-status');
-        // Don't send masked token back
-        const token = tokenInput && !tokenInput.startsWith('••') ? tokenInput : undefined;
 
         const body = { github_repo: repo };
-        if (token !== undefined) body.github_token = token;
+        // Only send token if user entered a new one (field is not empty)
+        if (tokenInput) body.github_token = tokenInput;
 
         if (status) { status.textContent = 'Validating...'; status.className = 'text-[10px] text-pb-accent'; }
 
@@ -549,10 +551,15 @@
             const gs = result.github_status || {};
             if (gs.valid) {
                 const trafficMsg = gs.traffic_access
-                    ? 'traffic access OK'
+                    ? 'traffic access OK — fetching data...'
                     : 'no traffic access — edit PAT and add Administration:read, or use Classic PAT with repo scope';
                 const color = gs.traffic_access ? 'text-[10px] text-green-400' : 'text-[10px] text-pb-amber';
                 if (status) { status.textContent = `Connected: ${gs.full_name} (${gs.stars} stars) — ${trafficMsg}`; status.className = color; }
+                // Auto-fetch traffic data after successful save
+                try {
+                    await PBAuth.api('/github/fetch', { method: 'POST' });
+                    if (status && gs.traffic_access) { status.textContent = `Connected: ${gs.full_name} (${gs.stars} stars) — traffic data fetched`; }
+                } catch (_) {}
                 loadGitHub(currentProject.project_id);
             } else {
                 if (status) { status.textContent = gs.error || 'Validation failed'; status.className = 'text-[10px] text-red-400'; }

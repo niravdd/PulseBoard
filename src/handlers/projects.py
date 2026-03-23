@@ -117,13 +117,13 @@ def _create(event):
 def _list():
     result = projects_table().scan()
     items = result.get("Items", [])
-    # Sort by name
     items.sort(key=lambda x: x.get("name", ""))
-    # Mask API keys in list view (show only prefix)
     for item in items:
         key = item.get("api_key", "")
         item["api_key_preview"] = key[:7] + "..." if len(key) > 7 else key
         del item["api_key"]
+        # Never return GitHub token in list view
+        item.pop("github_token", None)
     return ok({"projects": items})
 
 
@@ -132,6 +132,10 @@ def _get(project_id):
     item = result.get("Item")
     if not item:
         return error("Project not found", 404)
+    # Never return GitHub token — only indicate if one is set
+    if item.get("github_token"):
+        item["github_token_set"] = True
+    item.pop("github_token", None)
     return ok(item)
 
 
@@ -184,9 +188,13 @@ def _update(project_id, event):
     except Exception:
         return error("Project not found", 404)
 
-    # Return the full updated project
+    # Return the updated project (without token)
     result = projects_table().get_item(Key={"project_id": project_id})
-    return ok(result.get("Item", {}))
+    item = result.get("Item", {})
+    if item.get("github_token"):
+        item["github_token_set"] = True
+    item.pop("github_token", None)
+    return ok(item)
 
 
 def _validate_github(repo: str, token: str) -> dict:
