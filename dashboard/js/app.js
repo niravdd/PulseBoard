@@ -175,6 +175,32 @@
                 e.target.value = match[1].replace(/\.git$/, '');
             }
         });
+
+        // When repo changes, require new PAT and show overwrite warning
+        document.getElementById('project-github-repo')?.addEventListener('input', (e) => {
+            const saved = e.target.dataset.saved || '';
+            const current = e.target.value.trim();
+            const warning = document.getElementById('github-overwrite-warning');
+            const tokenField = document.getElementById('project-github-token');
+            if (saved && current !== saved) {
+                warning?.classList.remove('hidden');
+                if (tokenField) {
+                    tokenField.value = '';
+                    tokenField.placeholder = 'New token required — repo changed';
+                    tokenField.required = true;
+                }
+            } else if (!current) {
+                warning?.classList.add('hidden');
+            }
+        });
+
+        // Show overwrite warning when PAT field is edited
+        document.getElementById('project-github-token')?.addEventListener('input', () => {
+            const repoSaved = document.getElementById('project-github-repo')?.dataset.saved || '';
+            if (repoSaved) {
+                document.getElementById('github-overwrite-warning')?.classList.remove('hidden');
+            }
+        });
     }
 
     // ── Auth ─────────────────────────────────────────────────────────
@@ -293,11 +319,20 @@
             // GitHub fields
             const ghRepo = document.getElementById('project-github-repo');
             const ghToken = document.getElementById('project-github-token');
-            if (ghRepo) ghRepo.value = project.github_repo || '';
-            if (ghToken) {
-                ghToken.value = '';
-                ghToken.placeholder = project.github_token_set ? 'Token saved — enter new to replace' : 'ghp_... or github_pat_...';
+            if (ghRepo) {
+                ghRepo.value = project.github_repo || '';
+                ghRepo.dataset.saved = project.github_repo || '';
             }
+            if (ghToken) {
+                if (project.github_token_set) {
+                    ghToken.value = '';
+                    ghToken.placeholder = 'Token is active — leave empty to keep, or enter new to replace';
+                } else {
+                    ghToken.value = '';
+                    ghToken.placeholder = 'ghp_... or github_pat_...';
+                }
+            }
+            document.getElementById('github-overwrite-warning')?.classList.add('hidden');
 
             // Load data
             const loads = [
@@ -441,11 +476,14 @@
             }) : '';
             const props = typeof e.properties === 'object' ? e.properties : {};
             const uid = (e.distinct_id || '').substring(0, 8);
+            const cost = parseFloat(e.cost_usd || props.cost_usd || 0);
+            const costStr = cost > 0 ? `$${cost.toFixed(2)}` : '';
             return `
-                <div class="flex items-center gap-2 py-1.5 border-b border-pb-border/30 last:border-0 min-w-[500px]">
+                <div class="flex items-center gap-2 py-1.5 border-b border-pb-border/30 last:border-0 min-w-[550px]">
                     <span class="px-1.5 py-0.5 rounded bg-pb-accent/10 text-pb-accent font-medium flex-shrink-0">${esc(e.event_type)}</span>
                     <span class="text-pb-muted flex-shrink-0 font-mono" title="Deployment: ${esc(e.distinct_id || '')}">${uid}</span>
                     <span class="text-pb-muted flex-shrink-0">${[props.version, props.os, e.country].filter(Boolean).join(' · ')}</span>
+                    ${costStr ? `<span class="text-pb-accent flex-shrink-0 font-medium">${costStr}</span>` : ''}
                     <span class="ml-auto text-pb-muted/60 flex-shrink-0 whitespace-nowrap">${time}</span>
                 </div>
             `;
@@ -557,13 +595,26 @@
 
     async function handleSaveGitHub() {
         if (!currentProject) return;
-        const repo = document.getElementById('project-github-repo')?.value?.trim();
+        const repoField = document.getElementById('project-github-repo');
+        const repo = repoField?.value?.trim() || '';
+        const savedRepo = repoField?.dataset.saved || '';
         const tokenInput = document.getElementById('project-github-token')?.value?.trim();
         const status = document.getElementById('github-status');
+        const repoChanged = repo !== savedRepo;
+
+        // If repo changed, require a new token
+        if (repoChanged && repo && !tokenInput) {
+            if (status) { status.textContent = 'New token required when changing the repository'; status.className = 'text-[10px] text-pb-amber'; }
+            return;
+        }
 
         const body = { github_repo: repo };
-        // Only send token if user entered a new one (field is not empty)
-        if (tokenInput) body.github_token = tokenInput;
+        if (tokenInput) {
+            body.github_token = tokenInput;
+        } else if (repoChanged && !repo) {
+            // Clearing the repo — also clear the token
+            body.github_token = '';
+        }
 
         if (status) { status.textContent = 'Validating...'; status.className = 'text-[10px] text-pb-accent'; }
 
