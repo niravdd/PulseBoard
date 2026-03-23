@@ -11,6 +11,7 @@ Endpoints:
   POST   /projects/{project_id}/regen-key — Regenerate API key
 """
 
+import json
 import uuid
 from datetime import datetime, timezone
 
