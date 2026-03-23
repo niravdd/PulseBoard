@@ -482,15 +482,27 @@
             section.classList.remove('hidden');
 
             document.getElementById('gh-stars').textContent = (data.stars || 0).toLocaleString();
-            document.getElementById('gh-clones').textContent = (data.total_clones_14d || 0).toLocaleString();
-            document.getElementById('gh-clones-unique').textContent = `${data.unique_cloners_14d || 0} unique`;
-            document.getElementById('gh-views').textContent = (data.total_views_14d || 0).toLocaleString();
-            document.getElementById('gh-views-unique').textContent = `${data.unique_visitors_14d || 0} unique`;
             document.getElementById('gh-forks').textContent = (data.forks || 0).toLocaleString();
-            document.getElementById('gh-issues').textContent = `${data.open_issues || 0} open issues`;
+            document.getElementById('gh-issues').textContent = `${data.open_issues || 0} open issues · ${data.contributors || 0} contributors`;
 
-            if (data.fetched_at) {
-                document.getElementById('gh-fetched-at').textContent = `Last fetched: ${new Date(data.fetched_at).toLocaleString()}`;
+            if (data.has_traffic) {
+                document.getElementById('gh-clones').textContent = (data.total_clones_14d || 0).toLocaleString();
+                document.getElementById('gh-clones-unique').textContent = `${data.unique_cloners_14d || 0} unique`;
+                document.getElementById('gh-views').textContent = (data.total_views_14d || 0).toLocaleString();
+                document.getElementById('gh-views-unique').textContent = `${data.unique_visitors_14d || 0} unique`;
+            } else {
+                document.getElementById('gh-clones').textContent = '—';
+                document.getElementById('gh-clones-unique').textContent = 'needs Administration:read PAT permission';
+                document.getElementById('gh-views').textContent = '—';
+                document.getElementById('gh-views-unique').textContent = 'needs Administration:read PAT permission';
+            }
+
+            const fetchedAt = document.getElementById('gh-fetched-at');
+            if (fetchedAt) {
+                let msg = data.fetched_at ? `Last fetched: ${new Date(data.fetched_at).toLocaleString()}` : '';
+                if (data.language) msg += ` · ${data.language}`;
+                if (data.traffic_note) msg += ` · ${data.traffic_note}`;
+                fetchedAt.textContent = msg;
             }
 
             // Referrers
@@ -536,7 +548,11 @@
             currentProject = result;
             const gs = result.github_status || {};
             if (gs.valid) {
-                if (status) { status.textContent = `Connected: ${gs.full_name} (${gs.stars} stars)${gs.traffic_access ? ' — traffic access OK' : ' — no traffic access (need push/admin permission)'}`; status.className = 'text-[10px] text-green-400'; }
+                const trafficMsg = gs.traffic_access
+                    ? 'traffic access OK'
+                    : 'no traffic access — edit PAT and add Administration:read, or use Classic PAT with repo scope';
+                const color = gs.traffic_access ? 'text-[10px] text-green-400' : 'text-[10px] text-pb-amber';
+                if (status) { status.textContent = `Connected: ${gs.full_name} (${gs.stars} stars) — ${trafficMsg}`; status.className = color; }
                 loadGitHub(currentProject.project_id);
             } else {
                 if (status) { status.textContent = gs.error || 'Validation failed'; status.className = 'text-[10px] text-red-400'; }

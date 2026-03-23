@@ -54,51 +54,63 @@ def _fetch_and_store(project_id: str, repo: str, token: str):
     if token:
         headers["Authorization"] = f"token {token}"
 
-    # Fetch clones (14-day window)
-    clones_data = _github_get(f"https://api.github.com/repos/{repo}/traffic/clones", headers)
-    # Fetch views (14-day window)
-    views_data = _github_get(f"https://api.github.com/repos/{repo}/traffic/views", headers)
-    # Fetch referrers (top 10)
-    referrers = _github_get(f"https://api.github.com/repos/{repo}/traffic/popular/referrers", headers)
-    # Fetch popular paths (top 10)
-    paths = _github_get(f"https://api.github.com/repos/{repo}/traffic/popular/paths", headers)
-    # Fetch repo stats
-    repo_data = _github_get(f"https://api.github.com/repos/{repo}", headers)
+    # Fetch repo stats (always works with basic access)
+    repo_data = _github_get(f"https://api.github.com/repos/{repo}", headers) or {}
+    # Fetch languages
+    languages = _github_get(f"https://api.github.com/repos/{repo}/languages", headers) or {}
+    # Fetch contributors count
+    contributors = _github_get(f"https://api.github.com/repos/{repo}/contributors?per_page=1&anon=true", headers)
 
-    if not clones_data or not views_data:
-        logger.warning("No traffic data returned for %s (may lack push access)", repo)
-        return
+    # Fetch traffic (requires Administration:read on Fine-Grained, or repo scope on Classic)
+    clones_data = _github_get(f"https://api.github.com/repos/{repo}/traffic/clones", headers)
+    views_data = _github_get(f"https://api.github.com/repos/{repo}/traffic/views", headers)
+    referrers = _github_get(f"https://api.github.com/repos/{repo}/traffic/popular/referrers", headers)
+    paths = _github_get(f"https://api.github.com/repos/{repo}/traffic/popular/paths", headers)
+
+    has_traffic = bool(clones_data and views_data)
+    if not has_traffic:
+        logger.info("No traffic access for %s — storing repo stats only (add Administration:read to PAT for traffic)", repo)
 
     # Store daily clone/view data (permanent — GitHub only keeps 14 days)
-    for clone_day in clones_data.get("clones", []):
-        date = clone_day["timestamp"][:10]  # "2026-03-23T00:00:00Z" → "2026-03-23"
-        _upsert_github_day(project_id, date, {
-            "gh_clones": Decimal(str(clone_day.get("count", 0))),
-            "gh_clones_unique": Decimal(str(clone_day.get("uniques", 0))),
-        })
+    if has_traffic:
+        for clone_day in clones_data.get("clones", []):
+            date = clone_day["timestamp"][:10]
+            _upsert_github_day(project_id, date, {
+                "gh_clones": Decimal(str(clone_day.get("count", 0))),
+                "gh_clones_unique": Decimal(str(clone_day.get("uniques", 0))),
+            })
 
-    for view_day in views_data.get("views", []):
-        date = view_day["timestamp"][:10]
-        _upsert_github_day(project_id, date, {
-            "gh_views": Decimal(str(view_day.get("count", 0))),
-            "gh_views_unique": Decimal(str(view_day.get("uniques", 0))),
-        })
+        for view_day in views_data.get("views", []):
+            date = view_day["timestamp"][:10]
+            _upsert_github_day(project_id, date, {
+                "gh_views": Decimal(str(view_day.get("count", 0))),
+                "gh_views_unique": Decimal(str(view_day.get("uniques", 0))),
+            })
 
-    # Store summary (latest snapshot)
+    # Store summary (latest snapshot — always stored, even without traffic)
     now = datetime.now(timezone.utc).isoformat()
     summary = {
-        "gh_total_clones": Decimal(str(clones_data.get("count", 0))),
-        "gh_unique_cloners": Decimal(str(clones_data.get("uniques", 0))),
-        "gh_total_views": Decimal(str(views_data.get("count", 0))),
-        "gh_unique_visitors": Decimal(str(views_data.get("uniques", 0))),
-        "gh_stars": Decimal(str(repo_data.get("stargazers_count", 0))) if repo_data else Decimal(0),
-        "gh_forks": Decimal(str(repo_data.get("forks_count", 0))) if repo_data else Decimal(0),
-        "gh_open_issues": Decimal(str(repo_data.get("open_issues_count", 0))) if repo_data else Decimal(0),
-        "gh_watchers": Decimal(str(repo_data.get("subscribers_count", 0))) if repo_data else Decimal(0),
-        "gh_referrers": json.dumps(referrers[:10]) if isinstance(referrers, list) else "[]",
-        "gh_popular_paths": json.dumps(paths[:10]) if isinstance(paths, list) else "[]",
+        "gh_stars": Decimal(str(repo_data.get("stargazers_count", 0))),
+        "gh_forks": Decimal(str(repo_data.get("forks_count", 0))),
+        "gh_open_issues": Decimal(str(repo_data.get("open_issues_count", 0))),
+        "gh_watchers": Decimal(str(repo_data.get("subscribers_count", 0))),
+        "gh_language": repo_data.get("language", ""),
+        "gh_languages": json.dumps(languages),
+        "gh_contributors": Decimal(str(len(contributors))) if isinstance(contributors, list) else Decimal(0),
+        "gh_description": repo_data.get("description", "") or "",
+        "gh_has_traffic": has_traffic,
         "gh_fetched_at": now,
     }
+
+    if has_traffic:
+        summary.update({
+            "gh_total_clones": Decimal(str(clones_data.get("count", 0))),
+            "gh_unique_cloners": Decimal(str(clones_data.get("uniques", 0))),
+            "gh_total_views": Decimal(str(views_data.get("count", 0))),
+            "gh_unique_visitors": Decimal(str(views_data.get("uniques", 0))),
+            "gh_referrers": json.dumps(referrers[:10]) if isinstance(referrers, list) else "[]",
+            "gh_popular_paths": json.dumps(paths[:10]) if isinstance(paths, list) else "[]",
+        })
 
     aggregates_table().update_item(
         Key={"pk": project_id, "sk": "github#summary"},
@@ -107,9 +119,9 @@ def _fetch_and_store(project_id: str, repo: str, token: str):
         ExpressionAttributeValues={f":{k}": v for k, v in summary.items()},
     )
 
-    logger.info("Stored GitHub traffic for %s: %d clones, %d views, %d stars",
-                repo, clones_data.get("count", 0), views_data.get("count", 0),
-                repo_data.get("stargazers_count", 0) if repo_data else 0)
+    traffic_msg = f"{clones_data.get('count', 0)} clones, {views_data.get('count', 0)} views" if has_traffic else "no traffic access"
+    logger.info("Stored GitHub data for %s: %s, %d stars, %d forks",
+                repo, traffic_msg, repo_data.get("stargazers_count", 0), repo_data.get("forks_count", 0))
 
 
 def _upsert_github_day(project_id: str, date: str, metrics: dict):

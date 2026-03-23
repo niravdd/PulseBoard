@@ -298,12 +298,26 @@ def _github(project_id, qs):
     except Exception:
         pass
 
+    # Parse languages
+    languages = {}
+    try:
+        languages = json.loads(summary.get("gh_languages", "{}"))
+    except Exception:
+        pass
+
+    has_traffic = summary.get("gh_has_traffic", False)
+
     return ok({
         "project_id": project_id,
+        "has_traffic": has_traffic,
         "stars": _dec(summary.get("gh_stars", 0)),
         "forks": _dec(summary.get("gh_forks", 0)),
         "watchers": _dec(summary.get("gh_watchers", 0)),
         "open_issues": _dec(summary.get("gh_open_issues", 0)),
+        "contributors": _dec(summary.get("gh_contributors", 0)),
+        "language": summary.get("gh_language", ""),
+        "languages": languages,
+        "description": summary.get("gh_description", ""),
         "total_clones_14d": _dec(summary.get("gh_total_clones", 0)),
         "unique_cloners_14d": _dec(summary.get("gh_unique_cloners", 0)),
         "total_views_14d": _dec(summary.get("gh_total_views", 0)),
@@ -312,6 +326,7 @@ def _github(project_id, qs):
         "popular_paths": paths,
         "daily": daily,
         "fetched_at": summary.get("gh_fetched_at", ""),
+        "traffic_note": "" if has_traffic else "Traffic data unavailable. Add Administration:read permission to your Fine-Grained PAT, or use a Classic PAT with repo scope.",
     })
 
 

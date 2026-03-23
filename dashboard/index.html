@@ -322,7 +322,11 @@
                                     or <a href="https://github.com/settings/tokens/new" target="_blank" class="text-pb-accent hover:underline">Classic PAT</a>
                                 </label>
                                 <input type="password" id="project-github-token" class="w-full px-3 py-1.5 rounded-lg bg-pb-bg border border-pb-border text-sm text-pb-text focus:border-pb-accent focus:outline-none" placeholder="ghp_... or github_pat_...">
-                                <p class="text-[9px] text-pb-muted mt-1">Needs <strong>repo</strong> scope (Classic) or <strong>Contents: read + Metadata: read</strong> (Fine-Grained). Traffic data requires push/admin access to the repo.</p>
+                                <p class="text-[9px] text-pb-muted mt-1">
+                                    <strong>Classic PAT:</strong> select <code>repo</code> scope (includes traffic).<br>
+                                    <strong>Fine-Grained PAT:</strong> select <code>Metadata: read</code> + <code>Administration: read</code> for traffic data.
+                                    Without Administration permission, stars/forks/languages still work but clone/view counts won't.
+                                </p>
                             </div>
                         </div>
                         <div class="flex items-center gap-2 mt-2">
