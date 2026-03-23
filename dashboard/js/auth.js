@@ -21,12 +21,12 @@
         _user: null,
 
         init() {
-            // Try to restore session
-            const stored = sessionStorage.getItem('pb_tokens');
+            // Try to restore session from localStorage (survives tab close)
+            const stored = localStorage.getItem('pb_tokens');
             if (stored) {
                 try {
                     this._tokens = JSON.parse(stored);
-                    this._user = sessionStorage.getItem('pb_user');
+                    this._user = localStorage.getItem('pb_user');
                     return true;
                 } catch (_) {}
             }
@@ -73,8 +73,8 @@
             if (data.AuthenticationResult) {
                 this._tokens = data.AuthenticationResult;
                 this._user = email;
-                sessionStorage.setItem('pb_tokens', JSON.stringify(this._tokens));
-                sessionStorage.setItem('pb_user', email);
+                localStorage.setItem('pb_tokens', JSON.stringify(this._tokens));
+                localStorage.setItem('pb_user', email);
                 return { success: true };
             }
 
@@ -104,8 +104,8 @@
             if (data.AuthenticationResult) {
                 this._tokens = data.AuthenticationResult;
                 this._user = email;
-                sessionStorage.setItem('pb_tokens', JSON.stringify(this._tokens));
-                sessionStorage.setItem('pb_user', email);
+                localStorage.setItem('pb_tokens', JSON.stringify(this._tokens));
+                localStorage.setItem('pb_user', email);
                 return { success: true };
             }
 
@@ -115,21 +115,69 @@
         logout() {
             this._tokens = null;
             this._user = null;
-            sessionStorage.removeItem('pb_tokens');
-            sessionStorage.removeItem('pb_user');
+            localStorage.removeItem('pb_tokens');
+            localStorage.removeItem('pb_user');
+            localStorage.removeItem('pb_last_project');
         },
 
-        /** Make an authenticated API call. */
+        /** Refresh the ID token using the refresh token. */
+        async refreshSession() {
+            const refreshToken = this._tokens?.RefreshToken;
+            if (!refreshToken) return false;
+
+            try {
+                const endpoint = `https://cognito-idp.${CONFIG.region}.amazonaws.com/`;
+                const response = await fetch(endpoint, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-amz-json-1.1',
+                        'X-Amz-Target': 'AWSCognitoIdentityProviderService.InitiateAuth',
+                    },
+                    body: JSON.stringify({
+                        AuthFlow: 'REFRESH_TOKEN_AUTH',
+                        ClientId: CONFIG.clientId,
+                        AuthParameters: { REFRESH_TOKEN: refreshToken },
+                    }),
+                });
+                const data = await response.json();
+                if (data.AuthenticationResult) {
+                    // RefreshToken is NOT returned on refresh — keep the existing one
+                    this._tokens = { ...data.AuthenticationResult, RefreshToken: refreshToken };
+                    localStorage.setItem('pb_tokens', JSON.stringify(this._tokens));
+                    return true;
+                }
+            } catch (_) {}
+            return false;
+        },
+
+        /** Make an authenticated API call. Auto-refreshes token on 401. */
         async api(path, opts = {}) {
-            const headers = opts.headers || {};
-            headers['Authorization'] = this.getIdToken();
-            if (opts.body && typeof opts.body === 'object') {
-                headers['Content-Type'] = 'application/json';
-                opts.body = JSON.stringify(opts.body);
+            const _doFetch = async () => {
+                const headers = { ...(opts.headers || {}) };
+                headers['Authorization'] = this.getIdToken();
+                if (opts.body && typeof opts.body === 'object') {
+                    headers['Content-Type'] = 'application/json';
+                    opts.body = JSON.stringify(opts.body);
+                }
+                const url = `${CONFIG.apiBase}${path}`;
+                return fetch(url, { ...opts, headers });
+            };
+
+            let res = await _doFetch();
+
+            // If 401, try refreshing the token and retry once
+            if (res.status === 401) {
+                const refreshed = await this.refreshSession();
+                if (refreshed) {
+                    res = await _doFetch();
+                } else {
+                    // Refresh failed — force re-login
+                    this.logout();
+                    window.location.reload();
+                    throw new Error('Session expired. Please sign in again.');
+                }
             }
-            opts.headers = headers;
-            const url = `${CONFIG.apiBase}${path}`;
-            const res = await fetch(url, opts);
+
             if (!res.ok) {
                 const err = await res.json().catch(() => ({ error: res.statusText }));
                 throw new Error(err.error || err.message || `HTTP ${res.status}`);

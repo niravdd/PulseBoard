@@ -11,6 +11,10 @@
     let _currentDays = 30;
     let _customFrom = '';
     let _customTo = '';
+    let _autoRefreshTimer = null;
+    const AUTO_REFRESH_MS = 5 * 60 * 1000; // 5 minutes
+    const IDLE_THRESHOLD_MS = 30 * 1000;    // Consider idle after 30s of no interaction
+    let _lastInteraction = Date.now();
 
     // ── Init ────────────────────────────────────────────────────────
 
@@ -21,6 +25,11 @@
             showLogin();
         }
         attachEvents();
+
+        // Idle detection — lightweight, single passive listener
+        for (const evt of ['mousemove', 'click', 'keydown', 'scroll', 'touchstart']) {
+            document.addEventListener(evt, () => { _lastInteraction = Date.now(); }, { passive: true });
+        }
     });
 
     function attachEvents() {
@@ -182,6 +191,16 @@
                 opt.textContent = p.name;
                 sel.appendChild(opt);
             });
+
+            // Restore last selected project
+            const lastProject = localStorage.getItem('pb_last_project');
+            if (lastProject) {
+                const exists = (data.projects || []).some(p => p.project_id === lastProject);
+                if (exists) {
+                    sel.value = lastProject;
+                    loadProject(lastProject);
+                }
+            }
         } catch (err) {
             console.error('Failed to load projects:', err);
         }
@@ -191,9 +210,13 @@
         try {
             const project = await PBAuth.api(`/projects/${projectId}`);
             currentProject = project;
+            localStorage.setItem('pb_last_project', projectId);
 
             document.getElementById('no-project')?.classList.add('hidden');
             document.getElementById('project-dashboard')?.classList.remove('hidden');
+
+            // Start auto-refresh
+            _startAutoRefresh(projectId);
 
             // Settings panel
             document.getElementById('project-id').textContent = project.project_id;
@@ -328,23 +351,28 @@
     }
 
     async function loadEvents(projectId) {
-        const data = await PBAuth.api(`/stats/${projectId}/events?limit=30`);
+        const data = await PBAuth.api(`/stats/${projectId}/events?limit=100`);
         const list = document.getElementById('events-list');
         const events = data.events || [];
+        const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
         list.innerHTML = events.map(e => {
-            const time = new Date(e.timestamp_id?.split('#')[0] || '').toLocaleString();
+            const ts = e.timestamp_id?.split('#')[0] || '';
+            const time = ts ? new Date(ts).toLocaleString(undefined, {
+                month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit',
+                timeZoneName: 'short',
+            }) : '';
             const props = typeof e.properties === 'object' ? e.properties : {};
+            const uid = (e.distinct_id || '').substring(0, 8);
             return `
                 <div class="flex items-center gap-2 py-1.5 border-b border-pb-border/30 last:border-0">
-                    <span class="px-1.5 py-0.5 rounded bg-pb-accent/10 text-pb-accent font-medium">${esc(e.event_type)}</span>
-                    <span class="text-pb-muted">${props.version || ''}</span>
-                    <span class="text-pb-muted">${props.os || ''}</span>
-                    <span class="text-pb-muted">${e.country || ''}</span>
-                    <span class="ml-auto text-pb-muted/60">${time}</span>
+                    <span class="px-1.5 py-0.5 rounded bg-pb-accent/10 text-pb-accent font-medium flex-shrink-0">${esc(e.event_type)}</span>
+                    <span class="text-pb-muted flex-shrink-0 font-mono" title="Deployment: ${esc(e.distinct_id || '')}">${uid}</span>
+                    <span class="text-pb-muted truncate">${[props.version, props.os, e.country].filter(Boolean).join(' · ')}</span>
+                    <span class="ml-auto text-pb-muted/60 flex-shrink-0 whitespace-nowrap">${time}</span>
                 </div>
             `;
-        }).join('');
+        }).join('') || '<p class="text-pb-muted text-center py-4">No events in this period</p>';
     }
 
     // ── Project Actions ──────────────────────────────────────────────
@@ -390,6 +418,23 @@
         } catch (err) {
             alert('Failed: ' + err.message);
         }
+    }
+
+    // ── Auto Refresh ─────────────────────────────────────────────
+
+    function _startAutoRefresh(projectId) {
+        if (_autoRefreshTimer) clearInterval(_autoRefreshTimer);
+        _autoRefreshTimer = setInterval(() => {
+            // Only refresh when idle (no interaction for IDLE_THRESHOLD_MS)
+            const idle = (Date.now() - _lastInteraction) > IDLE_THRESHOLD_MS;
+            if (!idle) return;
+            if (currentProject?.project_id !== projectId) return;
+
+            loadOverview(projectId);
+            loadTimeseries(projectId);
+            loadBreakdown(projectId);
+            loadEvents(projectId);
+        }, AUTO_REFRESH_MS);
     }
 
     // ── Admin Management ────────────────────────────────────────
