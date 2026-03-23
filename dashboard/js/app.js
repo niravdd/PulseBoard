@@ -416,8 +416,8 @@
         const versions = data.versions || [];
         const maxCount = versions[0]?.count || 1;
         versionList.innerHTML = versions.map(v => `
-            <div class="flex items-center gap-2" title="${esc(v.name)} — ${v.count} unique deployments">
-                <span class="text-xs font-mono w-2/5 truncate text-pb-text">${esc(v.name)}</span>
+            <div class="flex items-center gap-2" title="${esc(v.name || 'Older version')} — ${v.count} unique deployments">
+                <span class="text-xs font-mono w-2/5 truncate ${v.name ? 'text-pb-text' : 'text-pb-muted italic'}">${esc(v.name || 'Older version')}</span>
                 <div class="flex-1 h-2 rounded-full bg-pb-bg overflow-hidden">
                     <div class="h-full rounded-full bg-gradient-to-r from-pb-accent to-purple-500" style="width: ${Math.round(v.count / maxCount * 100)}%"></div>
                 </div>
@@ -447,8 +447,8 @@
         modelList.innerHTML = models.length === 0
             ? '<p class="text-xs text-pb-muted">No model data yet</p>'
             : models.map(m => `
-                <div class="flex items-center gap-2" title="${esc(m.name)} — ${m.count} events">
-                    <span class="text-xs font-mono w-2/5 truncate text-pb-text">${esc(m.name)}</span>
+                <div class="flex items-center gap-2" title="${esc(m.name || 'unknown')} — ${m.count} events">
+                    <span class="text-xs font-mono w-2/5 truncate ${m.name ? 'text-pb-text' : 'text-pb-muted italic'}">${esc(m.name || 'unknown')}</span>
                     <div class="flex-1 h-2 rounded-full bg-pb-bg overflow-hidden">
                         <div class="h-full rounded-full bg-gradient-to-r from-pb-amber to-orange-500" style="width: ${Math.round(m.count / maxM * 100)}%"></div>
                     </div>
@@ -463,8 +463,8 @@
         etList.innerHTML = ets.length === 0
             ? '<p class="text-xs text-pb-muted">No event data yet</p>'
             : ets.map(e => `
-                <div class="flex items-center gap-2" title="${esc(e.name)} — ${e.count} events">
-                    <span class="text-xs font-mono w-2/5 truncate text-pb-text">${esc(e.name)}</span>
+                <div class="flex items-center gap-2" title="${esc(e.name || 'unknown')} — ${e.count} events">
+                    <span class="text-xs font-mono w-2/5 truncate ${e.name ? 'text-pb-text' : 'text-pb-muted italic'}">${esc(e.name || 'unknown')}</span>
                     <div class="flex-1 h-2 rounded-full bg-pb-bg overflow-hidden">
                         <div class="h-full rounded-full bg-gradient-to-r from-purple-500 to-pink-500" style="width: ${Math.round(e.count / maxET * 100)}%"></div>
                     </div>
