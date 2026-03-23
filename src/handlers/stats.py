@@ -110,33 +110,41 @@ def _overview(project_id, qs):
     })
 
 
-def _timeseries(project_id, qs):
-    """Event counts for charting. Supports daily/weekly/monthly, with days=0 for lifetime."""
-    period = qs.get("period", "daily")
-    days_back = int(qs.get("days", 30))  # 0 = lifetime (all data)
+def _resolve_date_range(qs):
+    """Resolve start/end dates from query params. Supports days=N, from/to, or days=0 (lifetime)."""
     now = datetime.now(timezone.utc)
+    date_from = qs.get("from", "")  # YYYY-MM-DD
+    date_to = qs.get("to", "")      # YYYY-MM-DD
+    days_back = int(qs.get("days", 30))
+
+    if date_from and date_to:
+        return date_from, date_to
+    if date_from:
+        return date_from, now.strftime("%Y-%m-%d")
+    if days_back == 0:
+        return "0000-01-01", "9999-12-31"
+    start = (now - timedelta(days=days_back)).strftime("%Y-%m-%d")
+    end = now.strftime("%Y-%m-%d")
+    return start, end
+
+
+def _timeseries(project_id, qs):
+    """Event counts for charting. Supports daily/weekly/monthly, custom date range, or lifetime."""
+    period = qs.get("period", "daily")
+    date_from, date_to = _resolve_date_range(qs)
 
     if period == "monthly":
         prefix = "month#"
-        if days_back > 0:
-            start = (now - timedelta(days=days_back)).strftime("%Y-%m")
-        else:
-            start = "0000"
-        items = _query_all(project_id, f"{prefix}{start}", f"{prefix}9999")
+        sk_start = f"{prefix}{date_from[:7]}"
+        sk_end = f"{prefix}{date_to[:7]}~"
+        items = _query_all(project_id, sk_start, sk_end)
     elif period == "weekly":
         prefix = "week#"
-        if days_back > 0:
-            start = (now - timedelta(days=days_back)).strftime("%Y-W%W")
-        else:
-            start = "0000"
-        items = _query_all(project_id, f"{prefix}{start}", f"{prefix}9999")
+        # Convert dates to week format for filtering
+        items = _query_all(project_id, f"{prefix}0000", f"{prefix}9999")
     else:
         prefix = "day#"
-        if days_back > 0:
-            start = (now - timedelta(days=days_back)).strftime("%Y-%m-%d")
-        else:
-            start = "0000"
-        items = _query_all(project_id, f"{prefix}{start}", f"{prefix}9999")
+        items = _query_all(project_id, f"{prefix}{date_from}", f"{prefix}{date_to}~")
 
     series = []
     for item in sorted(items, key=lambda x: x.get("sk", "")):
@@ -152,22 +160,16 @@ def _timeseries(project_id, qs):
 
 
 def _breakdown(project_id, qs):
-    """Detailed breakdown by dimension. days=0 for lifetime."""
-    days_back = int(qs.get("days", 30))  # 0 = lifetime
-    now = datetime.now(timezone.utc)
-
-    if days_back > 0:
-        start = (now - timedelta(days=days_back)).strftime("%Y-%m-%d")
-    else:
-        start = "0000"
-
-    days = _query_all(project_id, f"day#{start}", "day#9999")
+    """Detailed breakdown by dimension. Supports days=N, from/to, or days=0 (lifetime)."""
+    date_from, date_to = _resolve_date_range(qs)
+    days = _query_all(project_id, f"day#{date_from}", f"day#{date_to}~")
 
     # Aggregate across all days
     versions = {}
     os_breakdown = {}
     countries = {}
     event_types = {}
+    models = {}
     total_cost = 0.0
 
     for d in days:
@@ -180,6 +182,8 @@ def _breakdown(project_id, qs):
             countries[co] = countries.get(co, 0) + _dec(c)
         for et, c in (d.get("event_types") or {}).items():
             event_types[et] = event_types.get(et, 0) + _dec(c)
+        for m, c in (d.get("models") or {}).items():
+            models[m] = models.get(m, 0) + _dec(c)
 
     return ok({
         "project_id": project_id,
@@ -189,6 +193,7 @@ def _breakdown(project_id, qs):
         "os": _sorted_map(os_breakdown),
         "countries": _sorted_map(countries),
         "event_types": _sorted_map(event_types),
+        "models": _sorted_map(models),
     })
 
 

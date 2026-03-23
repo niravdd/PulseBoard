@@ -117,15 +117,23 @@
             <div id="project-dashboard" class="hidden space-y-8 fade-in">
 
                 <!-- Period Filter -->
-                <div class="flex items-center gap-2">
+                <div class="flex flex-wrap items-center gap-2">
                     <span class="text-xs text-pb-muted">Period:</span>
-                    <div class="flex gap-1" id="period-filter">
+                    <div class="flex gap-1 flex-wrap" id="period-filter">
                         <button class="px-3 py-1 rounded-lg text-xs font-medium transition-colors bg-pb-bg border border-pb-border hover:border-pb-accent" data-days="1">Today</button>
                         <button class="px-3 py-1 rounded-lg text-xs font-medium transition-colors bg-pb-bg border border-pb-border hover:border-pb-accent" data-days="7">7 Days</button>
                         <button class="px-3 py-1 rounded-lg text-xs font-medium transition-colors bg-pb-accent text-white" data-days="30">30 Days</button>
                         <button class="px-3 py-1 rounded-lg text-xs font-medium transition-colors bg-pb-bg border border-pb-border hover:border-pb-accent" data-days="90">90 Days</button>
                         <button class="px-3 py-1 rounded-lg text-xs font-medium transition-colors bg-pb-bg border border-pb-border hover:border-pb-accent" data-days="365">1 Year</button>
                         <button class="px-3 py-1 rounded-lg text-xs font-medium transition-colors bg-pb-bg border border-pb-border hover:border-pb-accent" data-days="0">Lifetime</button>
+                        <button class="px-3 py-1 rounded-lg text-xs font-medium transition-colors bg-pb-bg border border-pb-border hover:border-pb-accent" id="btn-custom-range">Custom</button>
+                    </div>
+                    <!-- Custom date range (hidden until Custom clicked) -->
+                    <div id="custom-range" class="hidden flex items-center gap-2 ml-2">
+                        <input type="date" id="range-from" class="px-2 py-1 rounded-lg bg-pb-bg border border-pb-border text-xs text-pb-text focus:border-pb-accent focus:outline-none">
+                        <span class="text-xs text-pb-muted">to</span>
+                        <input type="date" id="range-to" class="px-2 py-1 rounded-lg bg-pb-bg border border-pb-border text-xs text-pb-text focus:border-pb-accent focus:outline-none">
+                        <button id="btn-apply-range" class="px-3 py-1 rounded-lg bg-pb-accent text-white text-xs font-medium hover:bg-pb-accent-hover transition-colors">Apply</button>
                     </div>
                 </div>
 
@@ -190,6 +198,18 @@
                     </div>
                 </div>
 
+                <!-- Middle Row: Models + Event Types -->
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <div class="p-5 rounded-xl bg-pb-card border border-pb-border">
+                        <h3 class="text-sm font-semibold mb-3">Models Used</h3>
+                        <div id="model-list" class="space-y-2 max-h-48 overflow-auto"></div>
+                    </div>
+                    <div class="p-5 rounded-xl bg-pb-card border border-pb-border">
+                        <h3 class="text-sm font-semibold mb-3">Event Types</h3>
+                        <div id="event-type-list" class="space-y-2 max-h-48 overflow-auto"></div>
+                    </div>
+                </div>
+
                 <!-- Bottom Row: Countries + Recent Events -->
                 <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
                     <div class="p-5 rounded-xl bg-pb-card border border-pb-border">
@@ -199,6 +219,17 @@
                     <div class="p-5 rounded-xl bg-pb-card border border-pb-border">
                         <h3 class="text-sm font-semibold mb-3">Recent Events</h3>
                         <div id="events-list" class="space-y-1.5 max-h-64 overflow-auto text-xs"></div>
+                    </div>
+                </div>
+
+                <!-- Total Cost Banner -->
+                <div class="p-5 rounded-xl bg-gradient-to-r from-pb-accent/10 to-purple-500/10 border border-pb-accent/20">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <h3 class="text-sm font-semibold">Estimated AWS Spend (selected period)</h3>
+                            <p class="text-xs text-pb-muted mt-0.5">Sum of all cost_usd reported by client applications</p>
+                        </div>
+                        <p id="total-cost-banner" class="text-3xl font-bold text-pb-accent">$0.00</p>
                     </div>
                 </div>
 

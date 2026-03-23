@@ -8,7 +8,9 @@
 
     let currentProject = null;
     let _challengeSession = null;
-    let _currentDays = 30;  // Default period filter
+    let _currentDays = 30;
+    let _customFrom = '';
+    let _customTo = '';
 
     // ── Init ────────────────────────────────────────────────────────
 
@@ -57,6 +59,29 @@
                     ? 'px-3 py-1 rounded-lg text-xs font-medium transition-colors bg-pb-accent text-white'
                     : 'px-3 py-1 rounded-lg text-xs font-medium transition-colors bg-pb-bg border border-pb-border hover:border-pb-accent';
             });
+            _customFrom = '';
+            _customTo = '';
+            document.getElementById('custom-range')?.classList.add('hidden');
+            if (currentProject) {
+                loadTimeseries(currentProject.project_id);
+                loadBreakdown(currentProject.project_id);
+            }
+        });
+
+        // Custom date range
+        document.getElementById('btn-custom-range')?.addEventListener('click', () => {
+            document.getElementById('custom-range')?.classList.toggle('hidden');
+        });
+        document.getElementById('btn-apply-range')?.addEventListener('click', () => {
+            _customFrom = document.getElementById('range-from')?.value || '';
+            _customTo = document.getElementById('range-to')?.value || '';
+            if (!_customFrom || !_customTo) return;
+            _currentDays = -1;  // Flag: using custom range
+            // Clear preset button highlights
+            document.querySelectorAll('#period-filter button[data-days]').forEach(b => {
+                b.className = 'px-3 py-1 rounded-lg text-xs font-medium transition-colors bg-pb-bg border border-pb-border hover:border-pb-accent';
+            });
+            document.getElementById('btn-custom-range').className = 'px-3 py-1 rounded-lg text-xs font-medium transition-colors bg-pb-accent text-white';
             if (currentProject) {
                 loadTimeseries(currentProject.project_id);
                 loadBreakdown(currentProject.project_id);
@@ -207,14 +232,21 @@
         document.getElementById('stat-os').textContent = topOs ? `${topOs.name} (${topOs.count})` : '-';
     }
 
+    function _buildDateParams() {
+        if (_currentDays === -1 && _customFrom && _customTo) {
+            return `from=${_customFrom}&to=${_customTo}`;
+        }
+        return `days=${_currentDays}`;
+    }
+
     async function loadTimeseries(projectId) {
         const period = document.getElementById('chart-period')?.value || 'daily';
-        const data = await PBAuth.api(`/stats/${projectId}/timeseries?period=${period}&days=${_currentDays}`);
+        const data = await PBAuth.api(`/stats/${projectId}/timeseries?period=${period}&${_buildDateParams()}`);
         PBCharts.timeseries('chart-timeseries', data.series || []);
     }
 
     async function loadBreakdown(projectId) {
-        const data = await PBAuth.api(`/stats/${projectId}/breakdown?days=${_currentDays}`);
+        const data = await PBAuth.api(`/stats/${projectId}/breakdown?${_buildDateParams()}`);
 
         // OS doughnut
         PBCharts.doughnut('chart-os', data.os || []);
@@ -247,6 +279,42 @@
                 <span class="text-xs text-pb-muted w-10 text-right">${c.count}</span>
             </div>
         `).join('');
+
+        // Model list
+        const modelList = document.getElementById('model-list');
+        const models = data.models || [];
+        const maxM = models[0]?.count || 1;
+        modelList.innerHTML = models.length === 0
+            ? '<p class="text-xs text-pb-muted">No model data yet</p>'
+            : models.map(m => `
+                <div class="flex items-center gap-2">
+                    <span class="text-xs font-mono w-28 truncate text-pb-text">${esc(m.name)}</span>
+                    <div class="flex-1 h-2 rounded-full bg-pb-bg overflow-hidden">
+                        <div class="h-full rounded-full bg-gradient-to-r from-pb-amber to-orange-500" style="width: ${Math.round(m.count / maxM * 100)}%"></div>
+                    </div>
+                    <span class="text-xs text-pb-muted w-10 text-right">${m.count}</span>
+                </div>
+            `).join('');
+
+        // Event type list
+        const etList = document.getElementById('event-type-list');
+        const ets = data.event_types || [];
+        const maxET = ets[0]?.count || 1;
+        etList.innerHTML = ets.length === 0
+            ? '<p class="text-xs text-pb-muted">No event data yet</p>'
+            : ets.map(e => `
+                <div class="flex items-center gap-2">
+                    <span class="text-xs font-mono w-28 truncate text-pb-text">${esc(e.name)}</span>
+                    <div class="flex-1 h-2 rounded-full bg-pb-bg overflow-hidden">
+                        <div class="h-full rounded-full bg-gradient-to-r from-purple-500 to-pink-500" style="width: ${Math.round(e.count / maxET * 100)}%"></div>
+                    </div>
+                    <span class="text-xs text-pb-muted w-10 text-right">${e.count}</span>
+                </div>
+            `).join('');
+
+        // Cost banner
+        const costBanner = document.getElementById('total-cost-banner');
+        if (costBanner) costBanner.textContent = `$${(data.total_cost_usd || 0).toFixed(2)}`;
     }
 
     async function loadEvents(projectId) {

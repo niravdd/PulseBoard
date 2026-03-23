@@ -47,10 +47,20 @@ def pulse(
     # Auto-populate common properties if not provided
     if "os" not in props:
         props["os"] = platform.system()
+    if "os_version" not in props:
+        props["os_version"] = platform.release()
     if "arch" not in props:
         props["arch"] = platform.machine()
     if "python" not in props:
         props["python"] = platform.python_version()
+    if "hostname_hash" not in props:
+        props["hostname_hash"] = hashlib.sha256(platform.node().encode()).hexdigest()[:8]
+    if "cpu_count" not in props:
+        try:
+            import os as _os
+            props["cpu_count"] = _os.cpu_count() or 0
+        except Exception:
+            pass
 
     if not distinct_id:
         distinct_id = _machine_id()
@@ -120,3 +130,18 @@ class PulseBoard:
         """Convenience: track a generation event with model and cost."""
         props = {"model": model, "cost_usd": cost_usd, **extra}
         self.track("generation", **props)
+
+    def error(self, error_type: str = "", message: str = "", **extra):
+        """Track an error/failure event."""
+        props = {"error_type": error_type, "message": message[:500], **extra}
+        self.track("error", **props)
+
+    def feature(self, name: str, **extra):
+        """Track feature usage (which features are popular)."""
+        props = {"feature": name, **extra}
+        self.track("feature_used", **props)
+
+    def performance(self, operation: str, duration_ms: float, **extra):
+        """Track operation performance timing."""
+        props = {"operation": operation, "duration_ms": duration_ms, **extra}
+        self.track("performance", **props)

@@ -68,23 +68,35 @@ def handler(event, context):
     event_week = now.strftime("%Y-W%W")
     event_month = now.strftime("%Y-%m")
 
-    # Extract cost if provided (for usage/spend tracking)
+    # Extract structured fields from properties for indexed querying
     cost_usd = Decimal(str(properties.get("cost_usd", 0))) if properties.get("cost_usd") else Decimal(0)
+    duration_ms = Decimal(str(properties.get("duration_ms", 0))) if properties.get("duration_ms") else Decimal(0)
 
-    # Build event record
+    # Build event record — store both indexed fields and full properties blob
     record = {
         "project_id": project_id,
         "timestamp_id": timestamp_id,
         "event_date": event_date,
         "event_type": event_type,
         "distinct_id": distinct_id,
+        # Geography (from CloudFront headers)
         "country": country,
         "country_name": country_name,
         "city": city,
+        # System info
         "version": properties.get("version", ""),
         "os": properties.get("os", ""),
+        "os_version": properties.get("os_version", ""),
         "arch": properties.get("arch", ""),
+        "python": properties.get("python", ""),
+        "cpu_count": properties.get("cpu_count", 0),
+        # Usage metrics
         "cost_usd": cost_usd,
+        "duration_ms": duration_ms,
+        "model": properties.get("model", ""),
+        "feature": properties.get("feature", ""),
+        "error_type": properties.get("error_type", ""),
+        # Full properties for anything we didn't index
         "properties": json.dumps(properties) if properties else "{}",
     }
 
@@ -92,12 +104,13 @@ def handler(event, context):
     events_table().put_item(Item=record)
 
     # Update real-time aggregates (atomic counters)
+    model = properties.get("model", "")
     _increment_aggregate(project_id, f"day#{event_date}", event_type, distinct_id,
-                         properties.get("version", ""), properties.get("os", ""), country, cost_usd)
+                         properties.get("version", ""), properties.get("os", ""), country, cost_usd, model)
     _increment_aggregate(project_id, f"week#{event_week}", event_type, distinct_id,
-                         properties.get("version", ""), properties.get("os", ""), country, cost_usd)
+                         properties.get("version", ""), properties.get("os", ""), country, cost_usd, model)
     _increment_aggregate(project_id, f"month#{event_month}", event_type, distinct_id,
-                         properties.get("version", ""), properties.get("os", ""), country, cost_usd)
+                         properties.get("version", ""), properties.get("os", ""), country, cost_usd, model)
 
     return ok({"status": "ok", "project": project.get("name", project_id)})
 
@@ -113,7 +126,7 @@ def _resolve_project(api_key: str) -> dict | None:
     return items[0] if items else None
 
 
-def _increment_aggregate(project_id, period_key, event_type, distinct_id, version, os_name, country, cost_usd=Decimal(0)):
+def _increment_aggregate(project_id, period_key, event_type, distinct_id, version, os_name, country, cost_usd=Decimal(0), model=""):
     """Atomically increment counters and add to sets for the given time period.
 
     Aggregates table schema:
@@ -185,6 +198,16 @@ def _increment_aggregate(project_id, period_key, event_type, distinct_id, versio
         if "event_types = if_not_exists(event_types, :empty_map)" not in update_parts:
             update_parts.insert(1, "event_types = if_not_exists(event_types, :empty_map)")
         attr_names[f"#et_{safe_et}"] = event_type
+
+    # Model breakdown
+    if model:
+        safe_model = model.replace(" ", "_").replace(".", "_").replace("-", "_")
+        if ":empty_map" not in attr_values:
+            attr_values[":empty_map"] = {}
+        update_parts[0] += f", models.#m_{safe_model} = if_not_exists(models.#m_{safe_model}, :zero) + :one"
+        if "models = if_not_exists(models, :empty_map)" not in update_parts:
+            update_parts.insert(1, "models = if_not_exists(models, :empty_map)")
+        attr_names[f"#m_{safe_model}"] = model
 
     # DynamoDB update expressions need SET and ADD separated
     set_parts = [p for p in update_parts if not p.startswith("ADD")]
