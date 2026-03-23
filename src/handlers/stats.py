@@ -266,15 +266,17 @@ def _events(project_id, qs):
 # ── Helpers ──────────────────────────────────────────────────────────
 
 def _github(project_id, qs):
-    """Return GitHub traffic data: summary + daily clones/views timeseries."""
-    # Fetch summary
+    """Return GitHub traffic data: summary + daily clones/views timeseries.
+    Respects from/to/days query params for filtering daily data."""
+    # Fetch summary (always full — not filtered by date)
     summary_result = aggregates_table().get_item(
         Key={"pk": project_id, "sk": "github#summary"},
     )
     summary = summary_result.get("Item", {})
 
-    # Fetch daily GitHub traffic
-    gh_days = _query_all(project_id, "ghday#", "ghday#9999")
+    # Fetch daily GitHub traffic (filtered by date range)
+    date_from, date_to = _resolve_date_range(qs)
+    gh_days = _query_all(project_id, f"ghday#{date_from}", f"ghday#{date_to}~")
     daily = []
     for d in sorted(gh_days, key=lambda x: x.get("sk", "")):
         date = d.get("sk", "").replace("ghday#", "")

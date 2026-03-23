@@ -263,23 +263,36 @@
                 <div id="github-section" class="hidden">
                     <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
                         <div class="stat-card p-4 rounded-xl bg-pb-card border border-pb-border">
-                            <p class="text-[10px] text-pb-muted uppercase tracking-wider mb-1">GitHub Stars</p>
-                            <p id="gh-stars" class="text-2xl font-bold text-pb-amber">-</p>
+                            <p class="text-[10px] text-pb-muted uppercase tracking-wider mb-2">GitHub Stars</p>
+                            <div class="flex items-baseline gap-2">
+                                <p id="gh-stars" class="text-2xl font-bold text-pb-amber">-</p>
+                                <span class="text-[10px] text-pb-muted">stars</span>
+                            </div>
+                            <p id="gh-watchers" class="text-[10px] text-pb-muted mt-1">- watchers</p>
                         </div>
                         <div class="stat-card p-4 rounded-xl bg-pb-card border border-pb-border">
-                            <p class="text-[10px] text-pb-muted uppercase tracking-wider mb-1">Clones (14d)</p>
-                            <p id="gh-clones" class="text-2xl font-bold text-pb-accent">-</p>
-                            <p id="gh-clones-unique" class="text-[10px] text-pb-muted mt-0.5">- unique</p>
+                            <p class="text-[10px] text-pb-muted uppercase tracking-wider mb-2">Clones (14d)</p>
+                            <div class="flex items-baseline gap-2">
+                                <p id="gh-clones" class="text-2xl font-bold text-pb-accent">-</p>
+                                <span class="text-[10px] text-pb-muted">total</span>
+                            </div>
+                            <span id="gh-clones-unique" class="text-[10px] font-medium px-1.5 py-0.5 rounded bg-pb-accent/10 text-pb-accent mt-1.5 inline-block">- unique cloners</span>
                         </div>
                         <div class="stat-card p-4 rounded-xl bg-pb-card border border-pb-border">
-                            <p class="text-[10px] text-pb-muted uppercase tracking-wider mb-1">Views (14d)</p>
-                            <p id="gh-views" class="text-2xl font-bold text-pb-green">-</p>
-                            <p id="gh-views-unique" class="text-[10px] text-pb-muted mt-0.5">- unique</p>
+                            <p class="text-[10px] text-pb-muted uppercase tracking-wider mb-2">Views (14d)</p>
+                            <div class="flex items-baseline gap-2">
+                                <p id="gh-views" class="text-2xl font-bold text-pb-green">-</p>
+                                <span class="text-[10px] text-pb-muted">total</span>
+                            </div>
+                            <span id="gh-views-unique" class="text-[10px] font-medium px-1.5 py-0.5 rounded bg-pb-green/10 text-pb-green mt-1.5 inline-block">- unique visitors</span>
                         </div>
                         <div class="stat-card p-4 rounded-xl bg-pb-card border border-pb-border">
-                            <p class="text-[10px] text-pb-muted uppercase tracking-wider mb-1">Forks / Issues</p>
-                            <p id="gh-forks" class="text-2xl font-bold text-purple-400">-</p>
-                            <p id="gh-issues" class="text-[10px] text-pb-muted mt-0.5">- open issues</p>
+                            <p class="text-[10px] text-pb-muted uppercase tracking-wider mb-2">Forks / Issues</p>
+                            <div class="flex items-baseline gap-2">
+                                <p id="gh-forks" class="text-2xl font-bold text-purple-400">-</p>
+                                <span class="text-[10px] text-pb-muted">forks</span>
+                            </div>
+                            <p id="gh-issues" class="text-[10px] text-pb-muted mt-1">- open issues · - contributors</p>
                         </div>
                     </div>
                     <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-4">

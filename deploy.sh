@@ -89,9 +89,27 @@ aws s3 sync dashboard/ "s3://${DASHBOARD_BUCKET}/" \
     --cache-control "max-age=3600" \
     --exclude ".DS_Store"
 
-# Set correct content types
+# Set no-cache for HTML and JS (so updates are picked up immediately)
 aws s3 cp "s3://${DASHBOARD_BUCKET}/index.html" "s3://${DASHBOARD_BUCKET}/index.html" \
-    --content-type "text/html" --cache-control "no-cache" --metadata-directive REPLACE
+    --content-type "text/html" --cache-control "no-cache, no-store, must-revalidate" --metadata-directive REPLACE
+for jsfile in $(aws s3 ls "s3://${DASHBOARD_BUCKET}/js/" --recursive | awk '{print $4}'); do
+    aws s3 cp "s3://${DASHBOARD_BUCKET}/${jsfile}" "s3://${DASHBOARD_BUCKET}/${jsfile}" \
+        --content-type "application/javascript" --cache-control "no-cache, no-store, must-revalidate" --metadata-directive REPLACE
+done
+
+# Invalidate CloudFront cache
+CF_DIST_ID=$(echo "$OUTPUTS" | python3 -c "
+import sys,json
+url = [o['OutputValue'] for o in json.load(sys.stdin) if o['OutputKey']=='CloudFrontUrl'][0]
+# Extract distribution ID is not directly available — invalidate via AWS CLI
+" 2>/dev/null || echo "")
+# Try to get distribution ID from the domain
+CF_DOMAIN=$(echo "$CLOUDFRONT_URL" | sed 's|https://||')
+CF_DIST_ID=$(aws cloudfront list-distributions --query "DistributionList.Items[?DomainName=='${CF_DOMAIN}'].Id" --output text 2>/dev/null || echo "")
+if [ -n "$CF_DIST_ID" ]; then
+    echo "Invalidating CloudFront cache (${CF_DIST_ID})..."
+    aws cloudfront create-invalidation --distribution-id "$CF_DIST_ID" --paths "/*" > /dev/null 2>&1 || true
+fi
 
 echo ""
 echo "=========================================="

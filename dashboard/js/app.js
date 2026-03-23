@@ -90,6 +90,7 @@
             if (currentProject) {
                 loadTimeseries(currentProject.project_id);
                 loadBreakdown(currentProject.project_id);
+                if (currentProject.github_repo) loadGitHub(currentProject.project_id, _currentDays);
             }
         });
 
@@ -110,6 +111,7 @@
             if (currentProject) {
                 loadTimeseries(currentProject.project_id);
                 loadBreakdown(currentProject.project_id);
+                if (currentProject.github_repo) loadGitHub(currentProject.project_id, _currentDays);
             }
         });
 
@@ -342,7 +344,7 @@
                 loadEvents(projectId),
             ];
             if (project.github_repo) {
-                loads.push(loadGitHub(projectId));
+                loads.push(loadGitHub(projectId, _currentDays));
             } else {
                 document.getElementById('github-section')?.classList.add('hidden');
             }
@@ -549,27 +551,31 @@
 
     // ── GitHub Integration ─────────────────────────────────────────
 
-    async function loadGitHub(projectId) {
+    async function loadGitHub(projectId, days) {
         try {
-            const data = await PBAuth.api(`/stats/${projectId}/github`);
+            const params = (days !== undefined && days >= 0) ? `?${_buildDateParams()}` : '';
+            const data = await PBAuth.api(`/stats/${projectId}/github${params}`);
             const section = document.getElementById('github-section');
             if (!section) return;
             section.classList.remove('hidden');
 
             document.getElementById('gh-stars').textContent = (data.stars || 0).toLocaleString();
+            document.getElementById('gh-watchers').textContent = `${(data.watchers || 0).toLocaleString()} watchers`;
             document.getElementById('gh-forks').textContent = (data.forks || 0).toLocaleString();
             document.getElementById('gh-issues').textContent = `${data.open_issues || 0} open issues · ${data.contributors || 0} contributors`;
 
             if (data.has_traffic) {
                 document.getElementById('gh-clones').textContent = (data.total_clones_14d || 0).toLocaleString();
-                document.getElementById('gh-clones-unique').textContent = `${data.unique_cloners_14d || 0} unique`;
+                document.getElementById('gh-clones-unique').textContent = `${data.unique_cloners_14d || 0} unique cloners`;
                 document.getElementById('gh-views').textContent = (data.total_views_14d || 0).toLocaleString();
-                document.getElementById('gh-views-unique').textContent = `${data.unique_visitors_14d || 0} unique`;
+                document.getElementById('gh-views-unique').textContent = `${data.unique_visitors_14d || 0} unique visitors`;
             } else {
                 document.getElementById('gh-clones').textContent = '—';
-                document.getElementById('gh-clones-unique').textContent = 'needs Administration:read PAT permission';
+                const clonesBadge = document.getElementById('gh-clones-unique');
+                if (clonesBadge) { clonesBadge.textContent = 'needs Administration:read'; clonesBadge.className = 'text-[10px] px-1.5 py-0.5 rounded bg-pb-amber/10 text-pb-amber mt-1.5 inline-block'; }
                 document.getElementById('gh-views').textContent = '—';
-                document.getElementById('gh-views-unique').textContent = 'needs Administration:read PAT permission';
+                const viewsBadge = document.getElementById('gh-views-unique');
+                if (viewsBadge) { viewsBadge.textContent = 'needs Administration:read'; viewsBadge.className = 'text-[10px] px-1.5 py-0.5 rounded bg-pb-amber/10 text-pb-amber mt-1.5 inline-block'; }
             }
 
             const fetchedAt = document.getElementById('gh-fetched-at');
