@@ -187,7 +187,7 @@ def _breakdown(project_id, qs):
 
     return ok({
         "project_id": project_id,
-        "days": days_back,
+        "date_range": {"from": date_from, "to": date_to},
         "total_cost_usd": round(total_cost, 4),
         "versions": _sorted_map(versions),
         "os": _sorted_map(os_breakdown),
