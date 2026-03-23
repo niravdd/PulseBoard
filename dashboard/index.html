@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PulseBoard — Telemetry Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        pb: {
+                            bg: '#0c0f1a',
+                            surface: '#151929',
+                            card: '#1a1f35',
+                            accent: '#6366f1',
+                            'accent-hover': '#818cf8',
+                            text: '#e2e8f0',
+                            muted: '#64748b',
+                            border: '#2d3555',
+                            green: '#10b981',
+                            amber: '#f59e0b',
+                            red: '#ef4444',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+        .stat-card { transition: transform 0.15s, box-shadow 0.15s; }
+        .stat-card:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(99, 102, 241, 0.1); }
+        .chart-container { position: relative; height: 280px; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+        .fade-in { animation: fadeIn 0.3s ease-out; }
+        .login-bg { background: radial-gradient(ellipse at top, #1a1f35 0%, #0c0f1a 70%); }
+    </style>
+</head>
+<body class="bg-pb-bg text-pb-text min-h-screen">
+
+    <!-- Login Screen -->
+    <div id="login-screen" class="login-bg min-h-screen flex items-center justify-center">
+        <div class="w-full max-w-sm p-8 rounded-2xl bg-pb-surface/80 backdrop-blur-xl border border-pb-border shadow-2xl">
+            <div class="text-center mb-8">
+                <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-pb-accent to-purple-500 flex items-center justify-center mx-auto mb-3 shadow-lg shadow-pb-accent/20">
+                    <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+                    </svg>
+                </div>
+                <h1 class="text-2xl font-bold bg-gradient-to-r from-pb-accent to-purple-400 bg-clip-text text-transparent">PulseBoard</h1>
+                <p class="text-pb-muted text-sm mt-1">Telemetry Dashboard</p>
+            </div>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm text-pb-muted mb-1">Email</label>
+                    <input type="email" id="login-email" class="w-full px-4 py-2.5 rounded-lg bg-pb-bg border border-pb-border text-pb-text focus:border-pb-accent focus:outline-none transition-colors" placeholder="admin@example.com">
+                </div>
+                <div>
+                    <label class="block text-sm text-pb-muted mb-1">Password</label>
+                    <input type="password" id="login-password" class="w-full px-4 py-2.5 rounded-lg bg-pb-bg border border-pb-border text-pb-text focus:border-pb-accent focus:outline-none transition-colors" placeholder="Password">
+                </div>
+                <!-- New password (for first login / force change) -->
+                <div id="new-password-group" class="hidden">
+                    <label class="block text-sm text-pb-muted mb-1">Set New Password</label>
+                    <input type="password" id="login-new-password" class="w-full px-4 py-2.5 rounded-lg bg-pb-bg border border-pb-border text-pb-text focus:border-pb-accent focus:outline-none transition-colors" placeholder="New password">
+                </div>
+                <button id="login-btn" class="w-full py-2.5 rounded-lg bg-pb-accent hover:bg-pb-accent-hover text-white font-medium transition-colors">Sign In</button>
+                <p id="login-error" class="text-pb-red text-xs text-center hidden"></p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Dashboard (hidden until auth) -->
+    <div id="dashboard" class="hidden">
+
+        <!-- Top Nav -->
+        <nav class="sticky top-0 z-40 bg-pb-surface/90 backdrop-blur-lg border-b border-pb-border">
+            <div class="max-w-7xl mx-auto px-6 h-14 flex items-center justify-between">
+                <div class="flex items-center gap-3">
+                    <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-pb-accent to-purple-500 flex items-center justify-center">
+                        <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+                        </svg>
+                    </div>
+                    <span class="font-bold text-lg">PulseBoard</span>
+                    <select id="project-selector" class="ml-4 px-3 py-1.5 rounded-lg bg-pb-bg border border-pb-border text-sm focus:border-pb-accent focus:outline-none">
+                        <option value="">Select project...</option>
+                    </select>
+                </div>
+                <div class="flex items-center gap-3">
+                    <button id="btn-new-project" class="px-3 py-1.5 rounded-lg bg-pb-accent/10 text-pb-accent text-sm font-medium hover:bg-pb-accent/20 transition-colors">+ New Project</button>
+                    <span id="user-email" class="text-xs text-pb-muted"></span>
+                    <button id="btn-logout" class="text-xs text-pb-muted hover:text-pb-text transition-colors">Sign Out</button>
+                </div>
+            </div>
+        </nav>
+
+        <!-- Main Content -->
+        <main class="max-w-7xl mx-auto px-6 py-8">
+
+            <!-- No project selected -->
+            <div id="no-project" class="text-center py-20">
+                <div class="w-16 h-16 rounded-2xl bg-pb-card flex items-center justify-center mx-auto mb-4">
+                    <svg class="w-8 h-8 text-pb-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                    </svg>
+                </div>
+                <h2 class="text-xl font-semibold mb-2">Select a Project</h2>
+                <p class="text-pb-muted text-sm">Choose a project from the dropdown or create a new one to view telemetry data.</p>
+            </div>
+
+            <!-- Dashboard content (shown when project selected) -->
+            <div id="project-dashboard" class="hidden space-y-8 fade-in">
+
+                <!-- Stats Cards Row -->
+                <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div class="stat-card p-5 rounded-xl bg-pb-card border border-pb-border">
+                        <p class="text-xs text-pb-muted uppercase tracking-wider mb-1">Today</p>
+                        <p id="stat-today" class="text-3xl font-bold text-pb-accent">-</p>
+                        <p class="text-xs text-pb-muted mt-1">events</p>
+                    </div>
+                    <div class="stat-card p-5 rounded-xl bg-pb-card border border-pb-border">
+                        <p class="text-xs text-pb-muted uppercase tracking-wider mb-1">Last 7 Days</p>
+                        <p id="stat-7d" class="text-3xl font-bold text-pb-green">-</p>
+                        <p id="stat-7d-unique" class="text-xs text-pb-muted mt-1">- unique</p>
+                    </div>
+                    <div class="stat-card p-5 rounded-xl bg-pb-card border border-pb-border">
+                        <p class="text-xs text-pb-muted uppercase tracking-wider mb-1">Last 30 Days</p>
+                        <p id="stat-30d" class="text-3xl font-bold text-pb-amber">-</p>
+                        <p id="stat-30d-unique" class="text-xs text-pb-muted mt-1">- unique</p>
+                    </div>
+                    <div class="stat-card p-5 rounded-xl bg-pb-card border border-pb-border">
+                        <p class="text-xs text-pb-muted uppercase tracking-wider mb-1">Top Version</p>
+                        <p id="stat-version" class="text-3xl font-bold text-purple-400">-</p>
+                        <p id="stat-os" class="text-xs text-pb-muted mt-1">-</p>
+                    </div>
+                </div>
+
+                <!-- Charts Row -->
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <!-- Timeseries Chart -->
+                    <div class="lg:col-span-2 p-5 rounded-xl bg-pb-card border border-pb-border">
+                        <div class="flex items-center justify-between mb-4">
+                            <h3 class="text-sm font-semibold">Events Over Time</h3>
+                            <select id="chart-period" class="px-2 py-1 rounded bg-pb-bg border border-pb-border text-xs focus:outline-none">
+                                <option value="daily">Daily</option>
+                                <option value="weekly">Weekly</option>
+                                <option value="monthly">Monthly</option>
+                            </select>
+                        </div>
+                        <div class="chart-container">
+                            <canvas id="chart-timeseries"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- Breakdown Pie Charts -->
+                    <div class="space-y-6">
+                        <div class="p-5 rounded-xl bg-pb-card border border-pb-border">
+                            <h3 class="text-sm font-semibold mb-3">OS Distribution</h3>
+                            <div class="chart-container" style="height: 180px;">
+                                <canvas id="chart-os"></canvas>
+                            </div>
+                        </div>
+                        <div class="p-5 rounded-xl bg-pb-card border border-pb-border">
+                            <h3 class="text-sm font-semibold mb-3">Versions</h3>
+                            <div id="version-list" class="space-y-2 max-h-40 overflow-auto"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Bottom Row: Countries + Recent Events -->
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <div class="p-5 rounded-xl bg-pb-card border border-pb-border">
+                        <h3 class="text-sm font-semibold mb-3">Countries</h3>
+                        <div id="country-list" class="space-y-2 max-h-64 overflow-auto"></div>
+                    </div>
+                    <div class="p-5 rounded-xl bg-pb-card border border-pb-border">
+                        <h3 class="text-sm font-semibold mb-3">Recent Events</h3>
+                        <div id="events-list" class="space-y-1.5 max-h-64 overflow-auto text-xs"></div>
+                    </div>
+                </div>
+
+                <!-- Project Settings -->
+                <div class="p-5 rounded-xl bg-pb-card border border-pb-border">
+                    <h3 class="text-sm font-semibold mb-3">Project Settings</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                        <div>
+                            <span class="text-pb-muted">Project ID:</span>
+                            <span id="project-id" class="font-mono ml-2"></span>
+                        </div>
+                        <div>
+                            <span class="text-pb-muted">API Key:</span>
+                            <code id="project-api-key" class="font-mono ml-2 bg-pb-bg px-2 py-0.5 rounded text-xs select-all"></code>
+                            <button id="btn-copy-key" class="ml-2 text-pb-accent text-xs hover:underline">Copy</button>
+                        </div>
+                        <div>
+                            <span class="text-pb-muted">Ingest Endpoint:</span>
+                            <code id="project-endpoint" class="font-mono ml-2 bg-pb-bg px-2 py-0.5 rounded text-xs select-all"></code>
+                        </div>
+                        <div>
+                            <button id="btn-regen-key" class="px-3 py-1 rounded bg-pb-red/10 text-pb-red text-xs hover:bg-pb-red/20 transition-colors">Regenerate API Key</button>
+                            <button id="btn-delete-project" class="ml-2 px-3 py-1 rounded bg-pb-red/10 text-pb-red text-xs hover:bg-pb-red/20 transition-colors">Delete Project</button>
+                        </div>
+                    </div>
+                    <!-- SDK snippet -->
+                    <div class="mt-4">
+                        <h4 class="text-xs text-pb-muted uppercase tracking-wider mb-2">Quick Integration (Python)</h4>
+                        <pre id="sdk-snippet" class="bg-pb-bg p-3 rounded-lg text-xs font-mono text-pb-text/70 overflow-x-auto select-all"></pre>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- New Project Modal -->
+    <div id="new-project-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+        <div class="w-full max-w-md p-6 rounded-2xl bg-pb-surface border border-pb-border shadow-2xl space-y-4">
+            <h3 class="text-lg font-semibold">Register New Project</h3>
+            <div>
+                <label class="block text-sm text-pb-muted mb-1">Project Name</label>
+                <input type="text" id="new-project-name" class="w-full px-4 py-2.5 rounded-lg bg-pb-bg border border-pb-border text-pb-text focus:border-pb-accent focus:outline-none" placeholder="My App">
+            </div>
+            <div>
+                <label class="block text-sm text-pb-muted mb-1">Description (optional)</label>
+                <input type="text" id="new-project-desc" class="w-full px-4 py-2.5 rounded-lg bg-pb-bg border border-pb-border text-pb-text focus:border-pb-accent focus:outline-none" placeholder="Production deployment tracker">
+            </div>
+            <div class="flex gap-2 justify-end">
+                <button id="btn-cancel-project" class="px-4 py-2 rounded-lg border border-pb-border text-sm hover:bg-pb-bg transition-colors">Cancel</button>
+                <button id="btn-create-project" class="px-4 py-2 rounded-lg bg-pb-accent text-white text-sm font-medium hover:bg-pb-accent-hover transition-colors">Create</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/auth.js"></script>
+    <script src="js/charts.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>

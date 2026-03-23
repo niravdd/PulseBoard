@@ -1,0 +1,392 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  PulseBoard — Lightweight serverless telemetry platform.
+  Tracks deployments, versions, OS, and geography across multiple projects.
+
+Parameters:
+  Stage:
+    Type: String
+    Default: prod
+    AllowedValues: [dev, staging, prod]
+  AdminEmail:
+    Type: String
+    Description: Email for the initial admin user (Cognito)
+
+Globals:
+  Function:
+    Runtime: python3.12
+    Timeout: 10
+    MemorySize: 256
+    Environment:
+      Variables:
+        EVENTS_TABLE: !Ref EventsTable
+        PROJECTS_TABLE: !Ref ProjectsTable
+        AGGREGATES_TABLE: !Ref AggregatesTable
+        STAGE: !Ref Stage
+
+Resources:
+
+  # ── DynamoDB Tables ──────────────────────────────────────────────────
+
+  ProjectsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub pulseboard-projects-${Stage}
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: project_id
+          AttributeType: S
+        - AttributeName: api_key
+          AttributeType: S
+      KeySchema:
+        - AttributeName: project_id
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: api_key-index
+          KeySchema:
+            - AttributeName: api_key
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+
+  EventsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub pulseboard-events-${Stage}
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: project_id
+          AttributeType: S
+        - AttributeName: timestamp_id
+          AttributeType: S
+        - AttributeName: event_date
+          AttributeType: S
+      KeySchema:
+        - AttributeName: project_id
+          KeyType: HASH
+        - AttributeName: timestamp_id
+          KeyType: RANGE
+      GlobalSecondaryIndexes:
+        - IndexName: date-index
+          KeySchema:
+            - AttributeName: project_id
+              KeyType: HASH
+            - AttributeName: event_date
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+      TimeToLiveSpecification:
+        AttributeName: ttl
+        Enabled: true
+
+  AggregatesTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub pulseboard-aggregates-${Stage}
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: pk
+          AttributeType: S
+        - AttributeName: sk
+          AttributeType: S
+      KeySchema:
+        - AttributeName: pk
+          KeyType: HASH
+        - AttributeName: sk
+          KeyType: RANGE
+
+  # ── Cognito ──────────────────────────────────────────────────────────
+
+  UserPool:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      UserPoolName: !Sub pulseboard-users-${Stage}
+      AutoVerifiedAttributes: [email]
+      UsernameAttributes: [email]
+      Policies:
+        PasswordPolicy:
+          MinimumLength: 8
+          RequireUppercase: true
+          RequireLowercase: true
+          RequireNumbers: true
+          RequireSymbols: false
+      Schema:
+        - Name: email
+          Required: true
+          Mutable: true
+
+  UserPoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    Properties:
+      ClientName: !Sub pulseboard-dashboard-${Stage}
+      UserPoolId: !Ref UserPool
+      GenerateSecret: false
+      ExplicitAuthFlows:
+        - ALLOW_USER_SRP_AUTH
+        - ALLOW_REFRESH_TOKEN_AUTH
+      PreventUserExistenceErrors: ENABLED
+
+  AdminUser:
+    Type: AWS::Cognito::UserPoolUser
+    Properties:
+      UserPoolId: !Ref UserPool
+      Username: !Ref AdminEmail
+      UserAttributes:
+        - Name: email
+          Value: !Ref AdminEmail
+      DesiredDeliveryMediums: [EMAIL]
+
+  # ── Lambda Functions ─────────────────────────────────────────────────
+
+  IngestFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub pulseboard-ingest-${Stage}
+      Handler: src/handlers/ingest.handler
+      Description: Receives telemetry pings from client applications
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref EventsTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref ProjectsTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref AggregatesTable
+      Events:
+        Ingest:
+          Type: Api
+          Properties:
+            RestApiId: !Ref PulseBoardApi
+            Path: /ingest
+            Method: POST
+
+  ProjectsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub pulseboard-projects-${Stage}
+      Handler: src/handlers/projects.handler
+      Description: Project registration and management (Cognito-protected)
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref ProjectsTable
+      Events:
+        ListProjects:
+          Type: Api
+          Properties:
+            RestApiId: !Ref PulseBoardApi
+            Path: /projects
+            Method: GET
+            Auth:
+              Authorizer: CognitoAuth
+        CreateProject:
+          Type: Api
+          Properties:
+            RestApiId: !Ref PulseBoardApi
+            Path: /projects
+            Method: POST
+            Auth:
+              Authorizer: CognitoAuth
+        GetProject:
+          Type: Api
+          Properties:
+            RestApiId: !Ref PulseBoardApi
+            Path: /projects/{project_id}
+            Method: GET
+            Auth:
+              Authorizer: CognitoAuth
+        DeleteProject:
+          Type: Api
+          Properties:
+            RestApiId: !Ref PulseBoardApi
+            Path: /projects/{project_id}
+            Method: DELETE
+            Auth:
+              Authorizer: CognitoAuth
+        RegenKey:
+          Type: Api
+          Properties:
+            RestApiId: !Ref PulseBoardApi
+            Path: /projects/{project_id}/regen-key
+            Method: POST
+            Auth:
+              Authorizer: CognitoAuth
+
+  StatsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub pulseboard-stats-${Stage}
+      Handler: src/handlers/stats.handler
+      Description: Aggregated telemetry stats for the dashboard (Cognito-protected)
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref EventsTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref AggregatesTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref ProjectsTable
+      Events:
+        Overview:
+          Type: Api
+          Properties:
+            RestApiId: !Ref PulseBoardApi
+            Path: /stats/{project_id}/overview
+            Method: GET
+            Auth:
+              Authorizer: CognitoAuth
+        Timeseries:
+          Type: Api
+          Properties:
+            RestApiId: !Ref PulseBoardApi
+            Path: /stats/{project_id}/timeseries
+            Method: GET
+            Auth:
+              Authorizer: CognitoAuth
+        Breakdown:
+          Type: Api
+          Properties:
+            RestApiId: !Ref PulseBoardApi
+            Path: /stats/{project_id}/breakdown
+            Method: GET
+            Auth:
+              Authorizer: CognitoAuth
+        Events:
+          Type: Api
+          Properties:
+            RestApiId: !Ref PulseBoardApi
+            Path: /stats/{project_id}/events
+            Method: GET
+            Auth:
+              Authorizer: CognitoAuth
+
+  # ── API Gateway ──────────────────────────────────────────────────────
+
+  PulseBoardApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      Name: !Sub pulseboard-api-${Stage}
+      StageName: !Ref Stage
+      Cors:
+        AllowOrigin: "'*'"
+        AllowMethods: "'GET,POST,DELETE,OPTIONS'"
+        AllowHeaders: "'Content-Type,Authorization,X-Api-Key'"
+      Auth:
+        Authorizers:
+          CognitoAuth:
+            UserPoolArn: !GetAtt UserPool.Arn
+
+  # ── S3 Bucket for Dashboard ─────────────────────────────────────────
+
+  DashboardBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub pulseboard-dashboard-${Stage}-${AWS::AccountId}
+      WebsiteConfiguration:
+        IndexDocument: index.html
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+
+  DashboardBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref DashboardBucket
+      PolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: cloudfront.amazonaws.com
+            Action: s3:GetObject
+            Resource: !Sub ${DashboardBucket.Arn}/*
+            Condition:
+              StringEquals:
+                AWS:SourceArn: !Sub arn:aws:cloudfront::${AWS::AccountId}:distribution/${CloudFrontDistribution}
+
+  # ── CloudFront ───────────────────────────────────────────────────────
+
+  CloudFrontDistribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Enabled: true
+        DefaultRootObject: index.html
+        Comment: !Sub PulseBoard Dashboard + API (${Stage})
+        Origins:
+          # Dashboard (S3)
+          - Id: DashboardOrigin
+            DomainName: !GetAtt DashboardBucket.RegionalDomainName
+            S3OriginConfig:
+              OriginAccessIdentity: ''
+            OriginAccessControlId: !GetAtt CloudFrontOAC.Id
+          # API Gateway
+          - Id: ApiOrigin
+            DomainName: !Sub ${PulseBoardApi}.execute-api.${AWS::Region}.amazonaws.com
+            CustomOriginConfig:
+              HTTPSPort: 443
+              OriginProtocolPolicy: https-only
+            OriginPath: !Sub /${Stage}
+        DefaultCacheBehavior:
+          TargetOriginId: DashboardOrigin
+          ViewerProtocolPolicy: redirect-to-https
+          CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6  # CachingOptimized
+          Compress: true
+        CacheBehaviors:
+          # API routes — no caching, forward headers
+          - PathPattern: /ingest
+            TargetOriginId: ApiOrigin
+            ViewerProtocolPolicy: https-only
+            AllowedMethods: [GET, HEAD, OPTIONS, PUT, PATCH, POST, DELETE]
+            CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad  # CachingDisabled
+            OriginRequestPolicyId: b689b0a8-53d0-40ab-baf2-68738e2966ac  # AllViewerExceptHostHeader
+            Compress: true
+          - PathPattern: /projects*
+            TargetOriginId: ApiOrigin
+            ViewerProtocolPolicy: https-only
+            AllowedMethods: [GET, HEAD, OPTIONS, PUT, PATCH, POST, DELETE]
+            CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
+            OriginRequestPolicyId: b689b0a8-53d0-40ab-baf2-68738e2966ac
+            Compress: true
+          - PathPattern: /stats/*
+            TargetOriginId: ApiOrigin
+            ViewerProtocolPolicy: https-only
+            AllowedMethods: [GET, HEAD, OPTIONS, PUT, PATCH, POST, DELETE]
+            CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
+            OriginRequestPolicyId: b689b0a8-53d0-40ab-baf2-68738e2966ac
+            Compress: true
+        CustomErrorResponses:
+          - ErrorCode: 403
+            ResponseCode: 200
+            ResponsePagePath: /index.html
+          - ErrorCode: 404
+            ResponseCode: 200
+            ResponsePagePath: /index.html
+
+  CloudFrontOAC:
+    Type: AWS::CloudFront::OriginAccessControl
+    Properties:
+      OriginAccessControlConfig:
+        Name: !Sub pulseboard-oac-${Stage}
+        OriginAccessControlOriginType: s3
+        SigningBehavior: always
+        SigningProtocol: sigv4
+
+Outputs:
+  ApiUrl:
+    Description: API Gateway URL
+    Value: !Sub https://${PulseBoardApi}.execute-api.${AWS::Region}.amazonaws.com/${Stage}
+  CloudFrontUrl:
+    Description: Dashboard URL (CloudFront)
+    Value: !Sub https://${CloudFrontDistribution.DomainName}
+  IngestEndpoint:
+    Description: Telemetry ingest endpoint (use in client SDK)
+    Value: !Sub https://${CloudFrontDistribution.DomainName}/ingest
+  UserPoolId:
+    Description: Cognito User Pool ID
+    Value: !Ref UserPool
+  UserPoolClientId:
+    Description: Cognito App Client ID
+    Value: !Ref UserPoolClient
+  DashboardBucket:
+    Description: S3 bucket for dashboard static files
+    Value: !Ref DashboardBucket

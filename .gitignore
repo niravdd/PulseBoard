@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+.aws-sam/
+.DS_Store
+samconfig.toml
+dashboard/js/config.js
+node_modules/
+
