@@ -378,10 +378,10 @@
             const props = typeof e.properties === 'object' ? e.properties : {};
             const uid = (e.distinct_id || '').substring(0, 8);
             return `
-                <div class="flex items-center gap-2 py-1.5 border-b border-pb-border/30 last:border-0">
+                <div class="flex items-center gap-2 py-1.5 border-b border-pb-border/30 last:border-0 min-w-[500px]">
                     <span class="px-1.5 py-0.5 rounded bg-pb-accent/10 text-pb-accent font-medium flex-shrink-0">${esc(e.event_type)}</span>
                     <span class="text-pb-muted flex-shrink-0 font-mono" title="Deployment: ${esc(e.distinct_id || '')}">${uid}</span>
-                    <span class="text-pb-muted truncate">${[props.version, props.os, e.country].filter(Boolean).join(' · ')}</span>
+                    <span class="text-pb-muted flex-shrink-0">${[props.version, props.os, e.country].filter(Boolean).join(' · ')}</span>
                     <span class="ml-auto text-pb-muted/60 flex-shrink-0 whitespace-nowrap">${time}</span>
                 </div>
             `;
