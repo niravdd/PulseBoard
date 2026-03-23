@@ -68,6 +68,9 @@ def handler(event, context):
     event_week = now.strftime("%Y-W%W")
     event_month = now.strftime("%Y-%m")
 
+    # Extract cost if provided (for usage/spend tracking)
+    cost_usd = Decimal(str(properties.get("cost_usd", 0))) if properties.get("cost_usd") else Decimal(0)
+
     # Build event record
     record = {
         "project_id": project_id,
@@ -81,8 +84,8 @@ def handler(event, context):
         "version": properties.get("version", ""),
         "os": properties.get("os", ""),
         "arch": properties.get("arch", ""),
+        "cost_usd": cost_usd,
         "properties": json.dumps(properties) if properties else "{}",
-        "ttl": int(now.timestamp()) + (365 * 24 * 3600),  # 1 year TTL
     }
 
     # Write raw event
@@ -90,11 +93,11 @@ def handler(event, context):
 
     # Update real-time aggregates (atomic counters)
     _increment_aggregate(project_id, f"day#{event_date}", event_type, distinct_id,
-                         properties.get("version", ""), properties.get("os", ""), country)
+                         properties.get("version", ""), properties.get("os", ""), country, cost_usd)
     _increment_aggregate(project_id, f"week#{event_week}", event_type, distinct_id,
-                         properties.get("version", ""), properties.get("os", ""), country)
+                         properties.get("version", ""), properties.get("os", ""), country, cost_usd)
     _increment_aggregate(project_id, f"month#{event_month}", event_type, distinct_id,
-                         properties.get("version", ""), properties.get("os", ""), country)
+                         properties.get("version", ""), properties.get("os", ""), country, cost_usd)
 
     return ok({"status": "ok", "project": project.get("name", project_id)})
 
@@ -110,7 +113,7 @@ def _resolve_project(api_key: str) -> dict | None:
     return items[0] if items else None
 
 
-def _increment_aggregate(project_id, period_key, event_type, distinct_id, version, os_name, country):
+def _increment_aggregate(project_id, period_key, event_type, distinct_id, version, os_name, country, cost_usd=Decimal(0)):
     """Atomically increment counters and add to sets for the given time period.
 
     Aggregates table schema:
@@ -119,6 +122,7 @@ def _increment_aggregate(project_id, period_key, event_type, distinct_id, versio
 
     Stored attributes:
       total_events: atomic counter
+      total_cost_usd: accumulated cost
       unique_ids: string set of distinct_ids
       versions: map of {version: count}
       os_breakdown: map of {os: count}
@@ -129,11 +133,13 @@ def _increment_aggregate(project_id, period_key, event_type, distinct_id, versio
 
     update_parts = [
         "SET total_events = if_not_exists(total_events, :zero) + :one",
+        "total_cost_usd = if_not_exists(total_cost_usd, :zero) + :cost",
         "project_name = if_not_exists(project_name, :empty)",
     ]
     attr_values = {
         ":zero": Decimal(0),
         ":one": Decimal(1),
+        ":cost": cost_usd,
         ":empty": "",
         ":did": set([distinct_id]) if distinct_id else set(["anonymous"]),
     }

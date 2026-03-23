@@ -32,6 +32,8 @@ def handler(event, context):
     if not project_id:
         return error("Project ID required")
 
+    method = event.get("httpMethod", "GET")
+
     if path.endswith("/overview"):
         return _overview(project_id, qs)
     if path.endswith("/timeseries"):
@@ -40,40 +42,51 @@ def handler(event, context):
         return _breakdown(project_id, qs)
     if path.endswith("/events"):
         return _events(project_id, qs)
+    if path.endswith("/purge") and method == "DELETE":
+        return _purge(project_id, qs)
 
     return error("Unknown stats endpoint", 404)
 
 
 def _overview(project_id, qs):
-    """High-level summary: totals for last 7d, 30d, all-time."""
+    """High-level summary: totals for today, 7d, 30d, and lifetime."""
     now = datetime.now(timezone.utc)
+    today = now.strftime("%Y-%m-%d")
 
-    # Fetch last 30 days of daily aggregates
-    start_date = (now - timedelta(days=30)).strftime("%Y-%m-%d")
-    result = aggregates_table().query(
-        KeyConditionExpression=Key("pk").eq(project_id) & Key("sk").between(f"day#{start_date}", f"day#9999"),
-    )
-    days = result.get("Items", [])
+    # Fetch ALL daily aggregates (lifetime) — paginate if needed
+    days = _query_all(project_id, "day#", "day#9999")
 
-    total_30d = sum(_dec(d.get("total_events", 0)) for d in days)
-    unique_30d = set()
+    # Lifetime totals
+    total_lifetime = sum(_dec(d.get("total_events", 0)) for d in days)
+    cost_lifetime = sum(_dec_float(d.get("total_cost_usd", 0)) for d in days)
+    unique_lifetime = set()
     for d in days:
+        unique_lifetime.update(d.get("unique_ids", set()))
+
+    # Last 30 days
+    start_30d = (now - timedelta(days=30)).strftime("%Y-%m-%d")
+    days_30 = [d for d in days if d.get("sk", "") >= f"day#{start_30d}"]
+    total_30d = sum(_dec(d.get("total_events", 0)) for d in days_30)
+    cost_30d = sum(_dec_float(d.get("total_cost_usd", 0)) for d in days_30)
+    unique_30d = set()
+    for d in days_30:
         unique_30d.update(d.get("unique_ids", set()))
 
     # Last 7 days
     start_7d = (now - timedelta(days=7)).strftime("%Y-%m-%d")
     days_7 = [d for d in days if d.get("sk", "") >= f"day#{start_7d}"]
     total_7d = sum(_dec(d.get("total_events", 0)) for d in days_7)
+    cost_7d = sum(_dec_float(d.get("total_cost_usd", 0)) for d in days_7)
     unique_7d = set()
     for d in days_7:
         unique_7d.update(d.get("unique_ids", set()))
 
     # Today
-    today = now.strftime("%Y-%m-%d")
     days_today = [d for d in days if d.get("sk") == f"day#{today}"]
     total_today = sum(_dec(d.get("total_events", 0)) for d in days_today)
+    cost_today = sum(_dec_float(d.get("total_cost_usd", 0)) for d in days_today)
 
-    # Top version, OS, country from 30d aggregates
+    # Top version, OS, country from lifetime
     versions = {}
     os_breakdown = {}
     countries = {}
@@ -87,10 +100,10 @@ def _overview(project_id, qs):
 
     return ok({
         "project_id": project_id,
-        "period": {"start": start_date, "end": today},
-        "today": {"events": total_today},
-        "last_7d": {"events": total_7d, "unique_deployments": len(unique_7d)},
-        "last_30d": {"events": total_30d, "unique_deployments": len(unique_30d)},
+        "today": {"events": total_today, "cost_usd": round(cost_today, 4)},
+        "last_7d": {"events": total_7d, "unique_deployments": len(unique_7d), "cost_usd": round(cost_7d, 4)},
+        "last_30d": {"events": total_30d, "unique_deployments": len(unique_30d), "cost_usd": round(cost_30d, 4)},
+        "lifetime": {"events": total_lifetime, "unique_deployments": len(unique_lifetime), "cost_usd": round(cost_lifetime, 4)},
         "top_version": _top_n(versions, 1),
         "top_os": _top_n(os_breakdown, 1),
         "top_country": _top_n(countries, 1),
@@ -98,29 +111,33 @@ def _overview(project_id, qs):
 
 
 def _timeseries(project_id, qs):
-    """Daily event counts for charting. Default: last 30 days."""
+    """Event counts for charting. Supports daily/weekly/monthly, with days=0 for lifetime."""
     period = qs.get("period", "daily")
-    days_back = int(qs.get("days", 30))
+    days_back = int(qs.get("days", 30))  # 0 = lifetime (all data)
     now = datetime.now(timezone.utc)
 
     if period == "monthly":
-        # Fetch monthly aggregates
-        start = (now - timedelta(days=days_back)).strftime("%Y-%m")
-        result = aggregates_table().query(
-            KeyConditionExpression=Key("pk").eq(project_id) & Key("sk").between(f"month#{start}", "month#9999"),
-        )
+        prefix = "month#"
+        if days_back > 0:
+            start = (now - timedelta(days=days_back)).strftime("%Y-%m")
+        else:
+            start = "0000"
+        items = _query_all(project_id, f"{prefix}{start}", f"{prefix}9999")
     elif period == "weekly":
-        start = (now - timedelta(days=days_back)).strftime("%Y-W%W")
-        result = aggregates_table().query(
-            KeyConditionExpression=Key("pk").eq(project_id) & Key("sk").between(f"week#{start}", "week#9999"),
-        )
+        prefix = "week#"
+        if days_back > 0:
+            start = (now - timedelta(days=days_back)).strftime("%Y-W%W")
+        else:
+            start = "0000"
+        items = _query_all(project_id, f"{prefix}{start}", f"{prefix}9999")
     else:
-        start = (now - timedelta(days=days_back)).strftime("%Y-%m-%d")
-        result = aggregates_table().query(
-            KeyConditionExpression=Key("pk").eq(project_id) & Key("sk").between(f"day#{start}", "day#9999"),
-        )
+        prefix = "day#"
+        if days_back > 0:
+            start = (now - timedelta(days=days_back)).strftime("%Y-%m-%d")
+        else:
+            start = "0000"
+        items = _query_all(project_id, f"{prefix}{start}", f"{prefix}9999")
 
-    items = result.get("Items", [])
     series = []
     for item in sorted(items, key=lambda x: x.get("sk", "")):
         label = item.get("sk", "").split("#", 1)[-1]
@@ -128,29 +145,33 @@ def _timeseries(project_id, qs):
             "date": label,
             "events": _dec(item.get("total_events", 0)),
             "unique": len(item.get("unique_ids", set())),
+            "cost_usd": round(_dec_float(item.get("total_cost_usd", 0)), 4),
         })
 
     return ok({"project_id": project_id, "period": period, "series": series})
 
 
 def _breakdown(project_id, qs):
-    """Detailed breakdown by dimension. Default: last 30 days."""
-    days_back = int(qs.get("days", 30))
+    """Detailed breakdown by dimension. days=0 for lifetime."""
+    days_back = int(qs.get("days", 30))  # 0 = lifetime
     now = datetime.now(timezone.utc)
-    start = (now - timedelta(days=days_back)).strftime("%Y-%m-%d")
 
-    result = aggregates_table().query(
-        KeyConditionExpression=Key("pk").eq(project_id) & Key("sk").between(f"day#{start}", "day#9999"),
-    )
-    days = result.get("Items", [])
+    if days_back > 0:
+        start = (now - timedelta(days=days_back)).strftime("%Y-%m-%d")
+    else:
+        start = "0000"
+
+    days = _query_all(project_id, f"day#{start}", "day#9999")
 
     # Aggregate across all days
     versions = {}
     os_breakdown = {}
     countries = {}
     event_types = {}
+    total_cost = 0.0
 
     for d in days:
+        total_cost += _dec_float(d.get("total_cost_usd", 0))
         for v, c in (d.get("versions") or {}).items():
             versions[v] = versions.get(v, 0) + _dec(c)
         for o, c in (d.get("os_breakdown") or {}).items():
@@ -163,6 +184,7 @@ def _breakdown(project_id, qs):
     return ok({
         "project_id": project_id,
         "days": days_back,
+        "total_cost_usd": round(total_cost, 4),
         "versions": _sorted_map(versions),
         "os": _sorted_map(os_breakdown),
         "countries": _sorted_map(countries),
@@ -202,11 +224,74 @@ def _events(project_id, qs):
 
 # ── Helpers ──────────────────────────────────────────────────────────
 
+def _purge(project_id, qs):
+    """Delete all events and aggregates for a project. Requires ?confirm=yes."""
+    if qs.get("confirm") != "yes":
+        return error("Add ?confirm=yes to purge all data. This cannot be undone.", 400)
+
+    deleted_events = 0
+    deleted_aggregates = 0
+
+    # Purge events
+    kwargs = {"KeyConditionExpression": Key("project_id").eq(project_id)}
+    while True:
+        result = events_table().query(**kwargs, ProjectionExpression="project_id, timestamp_id", Limit=25)
+        items = result.get("Items", [])
+        if not items:
+            break
+        with events_table().batch_writer() as batch:
+            for item in items:
+                batch.delete_item(Key={"project_id": item["project_id"], "timestamp_id": item["timestamp_id"]})
+                deleted_events += 1
+        if "LastEvaluatedKey" not in result:
+            break
+        kwargs["ExclusiveStartKey"] = result["LastEvaluatedKey"]
+
+    # Purge aggregates
+    kwargs = {"KeyConditionExpression": Key("pk").eq(project_id)}
+    while True:
+        result = aggregates_table().query(**kwargs, ProjectionExpression="pk, sk", Limit=25)
+        items = result.get("Items", [])
+        if not items:
+            break
+        with aggregates_table().batch_writer() as batch:
+            for item in items:
+                batch.delete_item(Key={"pk": item["pk"], "sk": item["sk"]})
+                deleted_aggregates += 1
+        if "LastEvaluatedKey" not in result:
+            break
+        kwargs["ExclusiveStartKey"] = result["LastEvaluatedKey"]
+
+    return ok({"purged": True, "deleted_events": deleted_events, "deleted_aggregates": deleted_aggregates})
+
+
+def _query_all(project_id: str, sk_start: str, sk_end: str) -> list:
+    """Query aggregates table with pagination to get all matching items."""
+    items = []
+    kwargs = {
+        "KeyConditionExpression": Key("pk").eq(project_id) & Key("sk").between(sk_start, sk_end),
+    }
+    while True:
+        result = aggregates_table().query(**kwargs)
+        items.extend(result.get("Items", []))
+        if "LastEvaluatedKey" not in result:
+            break
+        kwargs["ExclusiveStartKey"] = result["LastEvaluatedKey"]
+    return items
+
+
 def _dec(val) -> int:
     """Convert Decimal or any numeric to int."""
     if isinstance(val, Decimal):
         return int(val)
     return int(val) if val else 0
+
+
+def _dec_float(val) -> float:
+    """Convert Decimal or any numeric to float (for cost values)."""
+    if isinstance(val, Decimal):
+        return float(val)
+    return float(val) if val else 0.0
 
 
 def _top_n(mapping: dict, n: int) -> list:

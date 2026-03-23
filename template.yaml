@@ -76,9 +76,7 @@ Resources:
               KeyType: RANGE
           Projection:
             ProjectionType: ALL
-      TimeToLiveSpecification:
-        AttributeName: ttl
-        Enabled: true
+      # No TTL — data retained forever unless user purges via dashboard
 
   AggregatesTable:
     Type: AWS::DynamoDB::Table
@@ -255,6 +253,14 @@ Resources:
             RestApiId: !Ref PulseBoardApi
             Path: /stats/{project_id}/events
             Method: GET
+            Auth:
+              Authorizer: CognitoAuth
+        Purge:
+          Type: Api
+          Properties:
+            RestApiId: !Ref PulseBoardApi
+            Path: /stats/{project_id}/purge
+            Method: DELETE
             Auth:
               Authorizer: CognitoAuth
 

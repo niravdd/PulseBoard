@@ -8,6 +8,7 @@
 
     let currentProject = null;
     let _challengeSession = null;
+    let _currentDays = 30;  // Default period filter
 
     // ── Init ────────────────────────────────────────────────────────
 
@@ -43,6 +44,23 @@
         // Chart period selector
         document.getElementById('chart-period')?.addEventListener('change', () => {
             if (currentProject) loadTimeseries(currentProject.project_id);
+        });
+
+        // Period filter buttons
+        document.getElementById('period-filter')?.addEventListener('click', (e) => {
+            const btn = e.target.closest('[data-days]');
+            if (!btn) return;
+            _currentDays = parseInt(btn.dataset.days);
+            // Update active button styling
+            document.querySelectorAll('#period-filter button').forEach(b => {
+                b.className = b === btn
+                    ? 'px-3 py-1 rounded-lg text-xs font-medium transition-colors bg-pb-accent text-white'
+                    : 'px-3 py-1 rounded-lg text-xs font-medium transition-colors bg-pb-bg border border-pb-border hover:border-pb-accent';
+            });
+            if (currentProject) {
+                loadTimeseries(currentProject.project_id);
+                loadBreakdown(currentProject.project_id);
+            }
         });
 
         // New project
@@ -168,12 +186,20 @@
 
     async function loadOverview(projectId) {
         const data = await PBAuth.api(`/stats/${projectId}/overview`);
+        const fmt = (n) => (n || 0).toLocaleString();
+        const fmtCost = (n) => `$${(n || 0).toFixed(2)}`;
 
-        document.getElementById('stat-today').textContent = (data.today?.events || 0).toLocaleString();
-        document.getElementById('stat-7d').textContent = (data.last_7d?.events || 0).toLocaleString();
-        document.getElementById('stat-7d-unique').textContent = `${data.last_7d?.unique_deployments || 0} unique`;
-        document.getElementById('stat-30d').textContent = (data.last_30d?.events || 0).toLocaleString();
-        document.getElementById('stat-30d-unique').textContent = `${data.last_30d?.unique_deployments || 0} unique`;
+        document.getElementById('stat-today').textContent = fmt(data.today?.events);
+        document.getElementById('stat-today-cost').textContent = fmtCost(data.today?.cost_usd);
+        document.getElementById('stat-7d').textContent = fmt(data.last_7d?.events);
+        document.getElementById('stat-7d-unique').textContent = `${fmt(data.last_7d?.unique_deployments)} unique`;
+        document.getElementById('stat-7d-cost').textContent = fmtCost(data.last_7d?.cost_usd);
+        document.getElementById('stat-30d').textContent = fmt(data.last_30d?.events);
+        document.getElementById('stat-30d-unique').textContent = `${fmt(data.last_30d?.unique_deployments)} unique`;
+        document.getElementById('stat-30d-cost').textContent = fmtCost(data.last_30d?.cost_usd);
+        document.getElementById('stat-lifetime').textContent = fmt(data.lifetime?.events);
+        document.getElementById('stat-lifetime-unique').textContent = `${fmt(data.lifetime?.unique_deployments)} unique`;
+        document.getElementById('stat-lifetime-cost').textContent = fmtCost(data.lifetime?.cost_usd);
 
         const topVer = data.top_version?.[0];
         document.getElementById('stat-version').textContent = topVer?.name || '-';
@@ -183,12 +209,12 @@
 
     async function loadTimeseries(projectId) {
         const period = document.getElementById('chart-period')?.value || 'daily';
-        const data = await PBAuth.api(`/stats/${projectId}/timeseries?period=${period}&days=30`);
+        const data = await PBAuth.api(`/stats/${projectId}/timeseries?period=${period}&days=${_currentDays}`);
         PBCharts.timeseries('chart-timeseries', data.series || []);
     }
 
     async function loadBreakdown(projectId) {
-        const data = await PBAuth.api(`/stats/${projectId}/breakdown?days=30`);
+        const data = await PBAuth.api(`/stats/${projectId}/breakdown?days=${_currentDays}`);
 
         // OS doughnut
         PBCharts.doughnut('chart-os', data.os || []);

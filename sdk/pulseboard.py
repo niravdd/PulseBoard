@@ -115,3 +115,8 @@ class PulseBoard:
         """Convenience: track app startup with version and system info."""
         props = {"version": version, **extra}
         self.track("app_started", **props)
+
+    def generation(self, model: str = "", cost_usd: float = 0, **extra):
+        """Convenience: track a generation event with model and cost."""
+        props = {"model": model, "cost_usd": cost_usd, **extra}
+        self.track("generation", **props)

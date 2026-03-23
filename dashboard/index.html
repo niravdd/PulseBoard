@@ -116,22 +116,40 @@
             <!-- Dashboard content (shown when project selected) -->
             <div id="project-dashboard" class="hidden space-y-8 fade-in">
 
+                <!-- Period Filter -->
+                <div class="flex items-center gap-2">
+                    <span class="text-xs text-pb-muted">Period:</span>
+                    <div class="flex gap-1" id="period-filter">
+                        <button class="px-3 py-1 rounded-lg text-xs font-medium transition-colors bg-pb-bg border border-pb-border hover:border-pb-accent" data-days="1">Today</button>
+                        <button class="px-3 py-1 rounded-lg text-xs font-medium transition-colors bg-pb-bg border border-pb-border hover:border-pb-accent" data-days="7">7 Days</button>
+                        <button class="px-3 py-1 rounded-lg text-xs font-medium transition-colors bg-pb-accent text-white" data-days="30">30 Days</button>
+                        <button class="px-3 py-1 rounded-lg text-xs font-medium transition-colors bg-pb-bg border border-pb-border hover:border-pb-accent" data-days="90">90 Days</button>
+                        <button class="px-3 py-1 rounded-lg text-xs font-medium transition-colors bg-pb-bg border border-pb-border hover:border-pb-accent" data-days="365">1 Year</button>
+                        <button class="px-3 py-1 rounded-lg text-xs font-medium transition-colors bg-pb-bg border border-pb-border hover:border-pb-accent" data-days="0">Lifetime</button>
+                    </div>
+                </div>
+
                 <!-- Stats Cards Row -->
-                <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                <div class="grid grid-cols-2 lg:grid-cols-5 gap-4">
                     <div class="stat-card p-5 rounded-xl bg-pb-card border border-pb-border">
                         <p class="text-xs text-pb-muted uppercase tracking-wider mb-1">Today</p>
                         <p id="stat-today" class="text-3xl font-bold text-pb-accent">-</p>
-                        <p class="text-xs text-pb-muted mt-1">events</p>
+                        <p id="stat-today-cost" class="text-xs text-pb-muted mt-1">$0.00</p>
                     </div>
                     <div class="stat-card p-5 rounded-xl bg-pb-card border border-pb-border">
                         <p class="text-xs text-pb-muted uppercase tracking-wider mb-1">Last 7 Days</p>
                         <p id="stat-7d" class="text-3xl font-bold text-pb-green">-</p>
-                        <p id="stat-7d-unique" class="text-xs text-pb-muted mt-1">- unique</p>
+                        <p id="stat-7d-unique" class="text-xs text-pb-muted mt-1">- unique · <span id="stat-7d-cost">$0.00</span></p>
                     </div>
                     <div class="stat-card p-5 rounded-xl bg-pb-card border border-pb-border">
                         <p class="text-xs text-pb-muted uppercase tracking-wider mb-1">Last 30 Days</p>
                         <p id="stat-30d" class="text-3xl font-bold text-pb-amber">-</p>
-                        <p id="stat-30d-unique" class="text-xs text-pb-muted mt-1">- unique</p>
+                        <p id="stat-30d-unique" class="text-xs text-pb-muted mt-1">- unique · <span id="stat-30d-cost">$0.00</span></p>
+                    </div>
+                    <div class="stat-card p-5 rounded-xl bg-pb-card border border-pb-border">
+                        <p class="text-xs text-pb-muted uppercase tracking-wider mb-1">Lifetime</p>
+                        <p id="stat-lifetime" class="text-3xl font-bold text-red-400">-</p>
+                        <p id="stat-lifetime-unique" class="text-xs text-pb-muted mt-1">- unique · <span id="stat-lifetime-cost">$0.00</span></p>
                     </div>
                     <div class="stat-card p-5 rounded-xl bg-pb-card border border-pb-border">
                         <p class="text-xs text-pb-muted uppercase tracking-wider mb-1">Top Version</p>
