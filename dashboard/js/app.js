@@ -154,6 +154,15 @@
         // GitHub integration
         document.getElementById('btn-save-github')?.addEventListener('click', handleSaveGitHub);
         document.getElementById('btn-fetch-github')?.addEventListener('click', handleFetchGitHub);
+
+        // Auto-parse full GitHub URL → owner/repo
+        document.getElementById('project-github-repo')?.addEventListener('blur', (e) => {
+            const val = e.target.value.trim();
+            const match = val.match(/github\.com\/([^/]+\/[^/]+)/);
+            if (match) {
+                e.target.value = match[1].replace(/\.git$/, '');
+            }
+        });
     }
 
     // ── Auth ─────────────────────────────────────────────────────────
