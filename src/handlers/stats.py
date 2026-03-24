@@ -192,29 +192,46 @@ def _breakdown(project_id, qs):
     unique_countries = {}
     unique_os = {}
     unique_versions = {}
+    # Track the LATEST version/OS/country per deployment (not cumulative).
+    # For each distinct_id, keep only the most recent event's values.
+    # This means versions show "currently running" not "ever used".
+    latest_per_deployment = {}  # distinct_id → {version, os, country, timestamp_id}
+
     try:
         raw_kwargs = {"KeyConditionExpression": Key("project_id").eq(project_id)}
         if date_from != "0000-01-01":
             raw_kwargs["FilterExpression"] = Key("event_date").between(date_from, date_to.rstrip("~"))
-        raw_items = []
         while True:
-            result = events_table().query(**raw_kwargs, ProjectionExpression="distinct_id, country, os, version")
-            raw_items.extend(result.get("Items", []))
+            result = events_table().query(**raw_kwargs,
+                ProjectionExpression="distinct_id, country, os, version, timestamp_id")
+            for item in result.get("Items", []):
+                did = item.get("distinct_id", "")
+                if not did:
+                    continue
+                ts = item.get("timestamp_id", "")
+                existing = latest_per_deployment.get(did)
+                if not existing or ts > existing["timestamp_id"]:
+                    latest_per_deployment[did] = {
+                        "version": item.get("version", ""),
+                        "os": item.get("os", ""),
+                        "country": item.get("country", ""),
+                        "timestamp_id": ts,
+                    }
             if "LastEvaluatedKey" not in result:
                 break
             raw_kwargs["ExclusiveStartKey"] = result["LastEvaluatedKey"]
 
-        for item in raw_items:
-            did = item.get("distinct_id", "")
-            c = item.get("country", "")
-            o = item.get("os", "")
-            v = item.get("version", "")
-            if c:
-                unique_countries.setdefault(c, set()).add(did)
-            if o:
-                unique_os.setdefault(o, set()).add(did)
+        # Build unique counts from each deployment's LATEST state
+        for did, info in latest_per_deployment.items():
+            v = info["version"]
+            o = info["os"]
+            c = info["country"]
             if v:
                 unique_versions.setdefault(v, set()).add(did)
+            if o:
+                unique_os.setdefault(o, set()).add(did)
+            if c:
+                unique_countries.setdefault(c, set()).add(did)
     except Exception:
         pass  # Fallback to event counts if raw query fails
 
