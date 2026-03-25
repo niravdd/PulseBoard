@@ -194,38 +194,47 @@
                     </div>
                 </div>
 
-                <!-- Charts Row -->
+                <!-- Timeseries Chart -->
+                <div class="p-4 rounded-xl bg-pb-card border border-pb-border">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-sm font-semibold">Events Over Time</h3>
+                        <select id="chart-period" class="px-2 py-1 rounded bg-pb-bg border border-pb-border text-xs focus:outline-none">
+                            <option value="daily">Daily</option>
+                            <option value="weekly">Weekly</option>
+                            <option value="monthly">Monthly</option>
+                        </select>
+                    </div>
+                    <div class="chart-container">
+                        <canvas id="chart-timeseries"></canvas>
+                    </div>
+                </div>
+
+                <!-- Active Deployments + OS + Versions Row -->
                 <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
-                    <!-- Timeseries Chart -->
-                    <div class="lg:col-span-2 p-4 rounded-xl bg-pb-card border border-pb-border">
-                        <div class="flex items-center justify-between mb-4">
-                            <h3 class="text-sm font-semibold">Events Over Time</h3>
-                            <select id="chart-period" class="px-2 py-1 rounded bg-pb-bg border border-pb-border text-xs focus:outline-none">
-                                <option value="daily">Daily</option>
-                                <option value="weekly">Weekly</option>
-                                <option value="monthly">Monthly</option>
-                            </select>
+                    <!-- Active Deployments -->
+                    <div class="p-4 rounded-xl bg-pb-card border border-pb-border">
+                        <div class="flex items-center justify-between mb-3">
+                            <h3 class="text-sm font-semibold">Active Deployments</h3>
+                            <span id="deployment-count" class="text-[10px] font-medium px-1.5 py-0.5 rounded bg-pb-accent/10 text-pb-accent">0</span>
                         </div>
-                        <div class="chart-container">
-                            <canvas id="chart-timeseries"></canvas>
+                        <div id="deployment-list" class="space-y-1.5 max-h-56 overflow-auto pr-2 text-xs"></div>
+                    </div>
+
+                    <!-- OS Distribution -->
+                    <div class="p-4 rounded-xl bg-pb-card border border-pb-border">
+                        <h3 class="text-sm font-semibold mb-2">OS Distribution <span class="text-[9px] text-pb-muted font-normal">(unique deployments)</span></h3>
+                        <div class="flex gap-3">
+                            <div class="chart-container flex-shrink-0" style="height: 140px; width: 140px;">
+                                <canvas id="chart-os"></canvas>
+                            </div>
+                            <div id="os-count-list" class="flex-1 space-y-1.5 overflow-auto pr-1"></div>
                         </div>
                     </div>
 
-                    <!-- Breakdown: OS + Versions -->
-                    <div class="space-y-4">
-                        <div class="p-4 rounded-xl bg-pb-card border border-pb-border">
-                            <h3 class="text-sm font-semibold mb-2">OS Distribution <span class="text-[9px] text-pb-muted font-normal">(unique deployments)</span></h3>
-                            <div class="flex gap-3">
-                                <div class="chart-container flex-shrink-0" style="height: 140px; width: 140px;">
-                                    <canvas id="chart-os"></canvas>
-                                </div>
-                                <div id="os-count-list" class="flex-1 space-y-1.5 overflow-auto pr-1"></div>
-                            </div>
-                        </div>
-                        <div class="p-4 rounded-xl bg-pb-card border border-pb-border">
-                            <h3 class="text-sm font-semibold mb-3">Versions</h3>
-                            <div id="version-list" class="space-y-2 max-h-40 overflow-auto pr-2"></div>
-                        </div>
+                    <!-- Versions -->
+                    <div class="p-4 rounded-xl bg-pb-card border border-pb-border">
+                        <h3 class="text-sm font-semibold mb-3">Versions</h3>
+                        <div id="version-list" class="space-y-2 max-h-56 overflow-auto pr-2"></div>
                     </div>
                 </div>
 

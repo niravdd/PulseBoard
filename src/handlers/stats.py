@@ -238,6 +238,22 @@ def _breakdown(project_id, qs):
     def _unique_map(m):
         return sorted([{"name": k, "count": len(v)} for k, v in m.items()], key=lambda x: x["count"], reverse=True)
 
+    # Build per-deployment list: [{id (truncated), version, os, country}]
+    deployments = sorted(
+        [
+            {
+                "id": did[:12],
+                "full_id": did,
+                "version": info["version"],
+                "os": info["os"],
+                "country": info["country"],
+            }
+            for did, info in latest_per_deployment.items()
+        ],
+        key=lambda x: x["version"] or "",
+        reverse=True,
+    )
+
     return ok({
         "project_id": project_id,
         "date_range": {"from": date_from, "to": date_to},
@@ -247,6 +263,7 @@ def _breakdown(project_id, qs):
         "countries": _unique_map(unique_countries) if unique_countries else _sorted_map(countries),
         "event_types": _sorted_map(event_types),
         "models": _sorted_map(models),
+        "deployments": deployments,
     })
 
 

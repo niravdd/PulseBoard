@@ -396,6 +396,23 @@
     async function loadBreakdown(projectId) {
         const data = await PBAuth.api(`/stats/${projectId}/breakdown?${_buildDateParams()}`);
 
+        // Active Deployments
+        const deployments = data.deployments || [];
+        const depCountEl = document.getElementById('deployment-count');
+        if (depCountEl) depCountEl.textContent = deployments.length;
+        const depList = document.getElementById('deployment-list');
+        if (depList) {
+            depList.innerHTML = deployments.length === 0
+                ? '<p class="text-pb-muted text-center py-4">No deployment data</p>'
+                : deployments.map(d => `
+                    <div class="flex items-center gap-2 py-1 border-b border-pb-border/30 last:border-0" title="Full ID: ${esc(d.full_id)}">
+                        <span class="font-mono text-pb-accent flex-shrink-0">${esc(d.id)}</span>
+                        <span class="text-pb-text truncate">${esc(d.version || 'unknown')}</span>
+                        <span class="ml-auto text-pb-muted flex-shrink-0">${[d.os, d.country].filter(Boolean).join(' · ')}</span>
+                    </div>
+                `).join('');
+        }
+
         // OS doughnut + count list
         const osData = data.os || [];
         PBCharts.doughnut('chart-os', osData);
