@@ -349,8 +349,8 @@ Resources:
         DailySchedule:
           Type: Schedule
           Properties:
-            Schedule: rate(1 day)
-            Description: Fetch GitHub traffic data daily
+            Schedule: rate(6 hours)
+            Description: Fetch GitHub traffic data every 6 hours
         ManualTrigger:
           Type: Api
           Properties:
