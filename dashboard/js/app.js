@@ -132,6 +132,7 @@
                 loadTimeseries(currentProject.project_id);
                 loadBreakdown(currentProject.project_id);
                 loadEvents(currentProject.project_id);
+                if (currentProject.github_repo) loadGitHub(currentProject.project_id, _currentDays);
             }
         });
 
