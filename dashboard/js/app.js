@@ -33,19 +33,18 @@
             document.addEventListener(evt, () => { _lastInteraction = Date.now(); }, { passive: true });
         }
 
-        // Background tab: refresh immediately when user returns after enough idle time
-        document.addEventListener('visibilitychange', () => {
-            if (document.visibilityState === 'visible' && currentProject) {
-                const elapsed = Date.now() - _lastRefresh;
-                if (elapsed >= AUTO_REFRESH_MS) {
-                    _lastRefresh = Date.now();
-                    loadOverview(currentProject.project_id);
-                    loadTimeseries(currentProject.project_id);
-                    loadBreakdown(currentProject.project_id);
-                    loadEvents(currentProject.project_id);
-                }
+        // Refresh when tab becomes visible or window regains focus (if data is stale)
+        const _refreshIfStale = () => {
+            if (!currentProject) return;
+            const elapsed = Date.now() - _lastRefresh;
+            if (elapsed >= 60000) {  // Stale if >1 minute old
+                _doRefresh(currentProject.project_id);
             }
+        };
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'visible') _refreshIfStale();
         });
+        window.addEventListener('focus', _refreshIfStale);
     });
 
     function attachEvents() {
@@ -126,14 +125,7 @@
 
         // Manual refresh
         document.getElementById('btn-refresh')?.addEventListener('click', () => {
-            if (currentProject) {
-                _lastRefresh = Date.now();
-                loadOverview(currentProject.project_id);
-                loadTimeseries(currentProject.project_id);
-                loadBreakdown(currentProject.project_id);
-                loadEvents(currentProject.project_id);
-                if (currentProject.github_repo) loadGitHub(currentProject.project_id, _currentDays);
-            }
+            if (currentProject) _doRefresh(currentProject.project_id);
         });
 
         // Admin management
@@ -714,57 +706,66 @@
 
     // ── Auto Refresh ─────────────────────────────────────────────
 
+    function _doRefresh(projectId) {
+        _lastRefresh = Date.now();
+        loadOverview(projectId);
+        loadTimeseries(projectId);
+        loadBreakdown(projectId);
+        loadEvents(projectId);
+        if (currentProject?.github_repo) loadGitHub(projectId, _currentDays);
+    }
+
     function _startAutoRefresh(projectId) {
         if (_autoRefreshTimer) clearInterval(_autoRefreshTimer);
         if (_countdownTimer) clearInterval(_countdownTimer);
         _lastRefresh = Date.now();
 
+        // Auto-refresh timer — only fires when tab is visible but NOT focused
         _autoRefreshTimer = setInterval(() => {
-            // Don't refresh if tab is hidden (switched to another tab in same window)
-            if (document.visibilityState === 'hidden') return;
-            const idle = (Date.now() - _lastInteraction) > IDLE_THRESHOLD_MS;
-            if (!idle) return;
+            if (document.visibilityState === 'hidden') return;  // Tab hidden → paused
+            if (document.hasFocus()) return;  // In focus → user refreshes manually
             if (currentProject?.project_id !== projectId) return;
-
-            _lastRefresh = Date.now();
-            loadOverview(projectId);
-            loadTimeseries(projectId);
-            loadBreakdown(projectId);
-            loadEvents(projectId);
+            _doRefresh(projectId);
         }, AUTO_REFRESH_MS);
 
-        // Countdown display — update every second
+        // Display — update every second
         _countdownTimer = setInterval(() => {
             const el = document.getElementById('refresh-countdown');
             if (!el) return;
 
-            // Tab hidden → paused (no refreshes)
+            // Tab hidden → paused
             if (document.visibilityState === 'hidden') {
                 el.textContent = 'paused';
                 return;
             }
 
             const elapsed = Date.now() - _lastRefresh;
-            const remaining = Math.max(0, AUTO_REFRESH_MS - elapsed);
-            const mins = Math.floor(remaining / 60000);
-            const secs = Math.floor((remaining % 60000) / 1000);
-            const countdown = `${mins}:${String(secs).padStart(2, '0')}`;
 
-            // Window visible but not focused → auto + countdown after idle threshold
+            // Out of focus → auto with countdown
             if (!document.hasFocus()) {
-                const idleSinceUnfocus = (Date.now() - _lastInteraction) > IDLE_THRESHOLD_MS;
-                el.textContent = idleSinceUnfocus ? `auto ${countdown}` : 'auto';
+                const remaining = Math.max(0, AUTO_REFRESH_MS - elapsed);
+                const mins = Math.floor(remaining / 60000);
+                const secs = Math.floor((remaining % 60000) / 1000);
+                el.textContent = `auto ${mins}:${String(secs).padStart(2, '0')}`;
                 return;
             }
 
-            const idle = (Date.now() - _lastInteraction) > IDLE_THRESHOLD_MS;
-            if (idle) {
-                el.textContent = countdown;
+            // In focus → live with stale counter, or stale warning after 5 min
+            const ageSec = Math.floor(elapsed / 1000);
+            if (ageSec >= 300) {
+                el.textContent = 'stale \u2013 refresh';
+                el.closest('button')?.classList.add('animate-pulse');
             } else {
-                // User is active — show how old the data is
-                const ageSec = Math.floor(elapsed / 1000);
-                const ageStr = ageSec < 60 ? `${ageSec}s` : `${Math.floor(ageSec / 60)}m`;
-                el.textContent = ageSec < 5 ? 'live' : `live \u00b7 ${ageStr}`;
+                el.closest('button')?.classList.remove('animate-pulse');
+                if (ageSec < 5) {
+                    el.textContent = 'live';
+                } else if (ageSec < 60) {
+                    el.textContent = `live \u00b7 ${ageSec}s ago`;
+                } else {
+                    const ageMin = Math.floor(ageSec / 60);
+                    const ageSr = ageSec % 60;
+                    el.textContent = `live \u00b7 ${ageMin}:${String(ageSr).padStart(2, '0')} ago`;
+                }
             }
         }, 1000);
     }
