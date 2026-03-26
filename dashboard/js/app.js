@@ -744,18 +744,21 @@
                 return;
             }
 
-            // Window visible but not focused → auto-refreshing in background
-            if (!document.hasFocus()) {
-                el.textContent = 'auto';
-                return;
-            }
-
             const elapsed = Date.now() - _lastRefresh;
             const remaining = Math.max(0, AUTO_REFRESH_MS - elapsed);
             const mins = Math.floor(remaining / 60000);
             const secs = Math.floor((remaining % 60000) / 1000);
+            const countdown = `${mins}:${String(secs).padStart(2, '0')}`;
+
+            // Window visible but not focused → auto + countdown after idle threshold
+            if (!document.hasFocus()) {
+                const idleSinceUnfocus = (Date.now() - _lastInteraction) > IDLE_THRESHOLD_MS;
+                el.textContent = idleSinceUnfocus ? `auto ${countdown}` : 'auto';
+                return;
+            }
+
             const idle = (Date.now() - _lastInteraction) > IDLE_THRESHOLD_MS;
-            el.textContent = idle ? `${mins}:${String(secs).padStart(2, '0')}` : 'live';
+            el.textContent = idle ? countdown : 'live';
         }, 1000);
     }
 
