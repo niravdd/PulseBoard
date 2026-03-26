@@ -609,11 +609,28 @@
                 if (viewsBadge) { viewsBadge.textContent = 'needs Administration:read'; viewsBadge.className = 'text-[10px] px-1.5 py-0.5 rounded bg-pb-amber/10 text-pb-amber mt-1.5 inline-block'; }
             }
 
+            // GitHub last-updated timestamp (header + footer)
+            const fmtGhDate = (isoStr) => {
+                if (!isoStr) return '';
+                const d = new Date(isoStr);
+                const day = d.getDate();
+                const mon = d.toLocaleString(undefined, { month: 'short' });
+                const year = d.getFullYear();
+                const time = d.toLocaleString(undefined, { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
+                const tz = d.toLocaleString(undefined, { timeZoneName: 'short' }).split(' ').pop();
+                return `${day} ${mon} ${year}, ${time} ${tz}`;
+            };
+
+            const ghHeader = document.getElementById('gh-last-updated');
+            if (ghHeader) {
+                ghHeader.textContent = data.fetched_at ? `Data from ${fmtGhDate(data.fetched_at)}` : '';
+            }
+
             const fetchedAt = document.getElementById('gh-fetched-at');
             if (fetchedAt) {
-                let msg = data.fetched_at ? `Last fetched: ${new Date(data.fetched_at).toLocaleString()}` : '';
-                if (data.language) msg += ` · ${data.language}`;
-                if (data.traffic_note) msg += ` · ${data.traffic_note}`;
+                let msg = '';
+                if (data.language) msg += data.language;
+                if (data.traffic_note) msg += (msg ? ' · ' : '') + data.traffic_note;
                 fetchedAt.textContent = msg;
             }
 
