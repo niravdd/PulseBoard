@@ -720,7 +720,8 @@
         _lastRefresh = Date.now();
 
         _autoRefreshTimer = setInterval(() => {
-            if (document.visibilityState === 'hidden') return;  // Don't refresh in background
+            // Don't refresh if tab is hidden or window doesn't have focus
+            if (document.visibilityState === 'hidden' || !document.hasFocus()) return;
             const idle = (Date.now() - _lastInteraction) > IDLE_THRESHOLD_MS;
             if (!idle) return;
             if (currentProject?.project_id !== projectId) return;
@@ -737,7 +738,8 @@
             const el = document.getElementById('refresh-countdown');
             if (!el) return;
 
-            if (document.visibilityState === 'hidden') {
+            // Tab hidden or window not focused → idle (no refresh will fire)
+            if (document.visibilityState === 'hidden' || !document.hasFocus()) {
                 el.textContent = 'idle';
                 return;
             }
