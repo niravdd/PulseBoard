@@ -623,7 +623,12 @@
 
             const ghHeader = document.getElementById('gh-last-updated');
             if (ghHeader) {
-                ghHeader.textContent = data.fetched_at ? `Data from ${fmtGhDate(data.fetched_at)}` : '';
+                if (data.fetched_at) {
+                    const nextRefresh = new Date(new Date(data.fetched_at).getTime() + 6 * 60 * 60 * 1000);
+                    ghHeader.textContent = `\u2014 Data from ${fmtGhDate(data.fetched_at)} \u00b7 Next auto-refresh: ${fmtGhDate(nextRefresh.toISOString())}`;
+                } else {
+                    ghHeader.textContent = '';
+                }
             }
 
             const fetchedAt = document.getElementById('gh-fetched-at');
