@@ -720,8 +720,8 @@
         _lastRefresh = Date.now();
 
         _autoRefreshTimer = setInterval(() => {
-            // Don't refresh if tab is hidden or window doesn't have focus
-            if (document.visibilityState === 'hidden' || !document.hasFocus()) return;
+            // Don't refresh if tab is hidden (switched to another tab in same window)
+            if (document.visibilityState === 'hidden') return;
             const idle = (Date.now() - _lastInteraction) > IDLE_THRESHOLD_MS;
             if (!idle) return;
             if (currentProject?.project_id !== projectId) return;
