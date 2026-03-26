@@ -720,6 +720,7 @@
         _lastRefresh = Date.now();
 
         _autoRefreshTimer = setInterval(() => {
+            if (document.visibilityState === 'hidden') return;  // Don't refresh in background
             const idle = (Date.now() - _lastInteraction) > IDLE_THRESHOLD_MS;
             if (!idle) return;
             if (currentProject?.project_id !== projectId) return;
