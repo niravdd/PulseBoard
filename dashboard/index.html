@@ -117,13 +117,13 @@
             <!-- Dashboard content (shown when project selected) -->
             <div id="project-dashboard" class="hidden space-y-4 fade-in">
 
-                <!-- Period Filter + Refresh -->
-                <div class="flex flex-wrap items-center gap-2">
-                    <button id="btn-refresh" class="px-3 py-1.5 rounded-lg bg-pb-accent/10 border border-pb-accent/30 text-xs text-pb-accent hover:bg-pb-accent/20 hover:border-pb-accent transition-colors flex items-center gap-1.5 font-medium" title="Click to refresh now. Auto-refreshes every 5 minutes when idle (no clicks or keyboard for 30 seconds). Shows 'active' while you're interacting. If the tab is in the background, refreshes when you return.">
-                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <!-- Period Filter + Refresh (sticky) -->
+                <div class="flex flex-wrap items-center gap-2 sticky top-14 z-30 bg-pb-bg/95 backdrop-blur-sm py-2 -mx-6 px-6 border-b border-pb-border/30">
+                    <button id="btn-refresh" class="px-3 py-1.5 rounded-lg bg-pb-accent/10 border border-pb-accent/30 text-xs text-pb-accent hover:bg-pb-accent/20 hover:border-pb-accent transition-colors flex items-center gap-1.5 font-medium whitespace-nowrap min-w-[6.5rem]" title="Click to refresh now. Auto-refreshes every 5 minutes when idle.">
+                        <svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
                         </svg>
-                        <span id="refresh-countdown" class="font-mono w-10 text-right">5:00</span>
+                        <span id="refresh-countdown" class="font-mono text-right">5:00</span>
                     </button>
                     <span class="text-xs text-pb-muted">Period:</span>
                     <div class="flex gap-1 flex-wrap" id="period-filter">

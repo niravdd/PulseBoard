@@ -758,7 +758,14 @@
             }
 
             const idle = (Date.now() - _lastInteraction) > IDLE_THRESHOLD_MS;
-            el.textContent = idle ? countdown : 'live';
+            if (idle) {
+                el.textContent = countdown;
+            } else {
+                // User is active — show how old the data is
+                const ageSec = Math.floor(elapsed / 1000);
+                const ageStr = ageSec < 60 ? `${ageSec}s` : `${Math.floor(ageSec / 60)}m`;
+                el.textContent = ageSec < 5 ? 'live' : `live \u00b7 ${ageStr}`;
+            }
         }, 1000);
     }
 
