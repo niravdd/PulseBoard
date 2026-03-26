@@ -360,7 +360,7 @@
     async function loadOverview(projectId) {
         const data = await PBAuth.api(`/stats/${projectId}/overview`);
         const fmt = (n) => (n || 0).toLocaleString();
-        const fmtCost = (n) => `$${(n || 0).toFixed(2)}`;
+        const fmtCost = (n) => `~$${(n || 0).toFixed(2)}`;
 
         document.getElementById('stat-today').textContent = fmt(data.today?.events);
         document.getElementById('stat-today-cost').textContent = fmtCost(data.today?.cost_usd);
@@ -492,7 +492,7 @@
 
         // Cost banner
         const costBanner = document.getElementById('total-cost-banner');
-        if (costBanner) costBanner.textContent = `$${(data.total_cost_usd || 0).toFixed(2)}`;
+        if (costBanner) costBanner.textContent = `~$${(data.total_cost_usd || 0).toFixed(2)}`;
     }
 
     async function loadEvents(projectId) {
