@@ -624,7 +624,8 @@
             const ghHeader = document.getElementById('gh-last-updated');
             if (ghHeader) {
                 if (data.fetched_at) {
-                    const nextRefresh = new Date(new Date(data.fetched_at).getTime() + 6 * 60 * 60 * 1000);
+                    const intervalHrs = data.fetch_interval_hours || 6;
+                    const nextRefresh = new Date(new Date(data.fetched_at).getTime() + intervalHrs * 60 * 60 * 1000);
                     ghHeader.textContent = `\u2014 Data from ${fmtGhDate(data.fetched_at)} \u00b7 Next auto-refresh: ${fmtGhDate(nextRefresh.toISOString())}`;
                 } else {
                     ghHeader.textContent = '';

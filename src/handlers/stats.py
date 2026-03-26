@@ -362,6 +362,7 @@ def _github(project_id, qs):
         "popular_paths": paths,
         "daily": daily,
         "fetched_at": summary.get("gh_fetched_at", ""),
+        "fetch_interval_hours": int(os.environ.get("GITHUB_FETCH_INTERVAL_HOURS", "6")),
         "traffic_note": "" if has_traffic else "Traffic data unavailable. Add Administration:read permission to your Fine-Grained PAT, or use a Classic PAT with repo scope.",
     })
 

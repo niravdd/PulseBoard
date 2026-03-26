@@ -24,6 +24,7 @@ Globals:
         PROJECTS_TABLE: !Ref ProjectsTable
         AGGREGATES_TABLE: !Ref AggregatesTable
         STAGE: !Ref Stage
+        GITHUB_FETCH_INTERVAL_HOURS: "6"
 
 Resources:
 
