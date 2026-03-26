@@ -738,9 +738,15 @@
             const el = document.getElementById('refresh-countdown');
             if (!el) return;
 
-            // Tab hidden or window not focused → idle (no refresh will fire)
-            if (document.visibilityState === 'hidden' || !document.hasFocus()) {
-                el.textContent = 'idle';
+            // Tab hidden → paused (no refreshes)
+            if (document.visibilityState === 'hidden') {
+                el.textContent = 'paused';
+                return;
+            }
+
+            // Window visible but not focused → auto-refreshing in background
+            if (!document.hasFocus()) {
+                el.textContent = 'auto';
                 return;
             }
 
@@ -749,7 +755,7 @@
             const mins = Math.floor(remaining / 60000);
             const secs = Math.floor((remaining % 60000) / 1000);
             const idle = (Date.now() - _lastInteraction) > IDLE_THRESHOLD_MS;
-            el.textContent = idle ? `${mins}:${String(secs).padStart(2, '0')}` : 'active';
+            el.textContent = idle ? `${mins}:${String(secs).padStart(2, '0')}` : 'live';
         }, 1000);
     }
 

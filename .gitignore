@@ -6,3 +6,4 @@ samconfig.toml
 dashboard/js/config.js
 node_modules/
 
+data/chat/
