@@ -737,8 +737,10 @@
             const el = document.getElementById('refresh-countdown');
             if (!el) return;
 
-            // Don't update if tab is hidden (browser throttles anyway)
-            if (document.visibilityState === 'hidden') return;
+            if (document.visibilityState === 'hidden') {
+                el.textContent = 'idle';
+                return;
+            }
 
             const elapsed = Date.now() - _lastRefresh;
             const remaining = Math.max(0, AUTO_REFRESH_MS - elapsed);
