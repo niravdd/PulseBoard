@@ -268,15 +268,27 @@ def _breakdown(project_id, qs):
 
 
 def _events(project_id, qs):
-    """Recent raw events, paginated."""
+    """Recent raw events, paginated. Supports date filtering via days/from/to params."""
     limit = int(qs.get("limit", 50))
     start_key = qs.get("cursor")
 
+    # Date filtering — timestamp_id starts with ISO date so we can filter by range
+    date_from, date_to = _resolve_date_range(qs)
+
     kwargs = {
-        "KeyConditionExpression": Key("project_id").eq(project_id),
         "ScanIndexForward": False,  # newest first
         "Limit": limit,
     }
+
+    if date_from != "0000-01-01" and date_to != "9999-12-31":
+        # Filter by timestamp range (timestamp_id is ISO format: YYYY-MM-DDTHH:MM:SS...)
+        kwargs["KeyConditionExpression"] = (
+            Key("project_id").eq(project_id) &
+            Key("timestamp_id").between(date_from, date_to + "~")
+        )
+    else:
+        kwargs["KeyConditionExpression"] = Key("project_id").eq(project_id)
+
     if start_key:
         kwargs["ExclusiveStartKey"] = {"project_id": project_id, "timestamp_id": start_key}
 

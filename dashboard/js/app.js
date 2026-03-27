@@ -488,7 +488,7 @@
     }
 
     async function loadEvents(projectId) {
-        const data = await PBAuth.api(`/stats/${projectId}/events?limit=100`);
+        const data = await PBAuth.api(`/stats/${projectId}/events?limit=100&${_buildDateParams()}`);
         const list = document.getElementById('events-list');
         const events = data.events || [];
         const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
