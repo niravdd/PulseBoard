@@ -113,7 +113,12 @@ def _overview(project_id, qs):
 
 
 def _resolve_date_range(qs):
-    """Resolve start/end dates from query params. Supports days=N, from/to, or days=0 (lifetime)."""
+    """Resolve start/end dates from query params. Supports days=N, from/to, or days=0 (lifetime).
+
+    days=1 means "today" (current UTC date only).
+    days=7 means "last 7 days" (today minus 6 days through today).
+    days=0 means "lifetime" (all data).
+    """
     now = datetime.now(timezone.utc)
     date_from = qs.get("from", "")  # YYYY-MM-DD
     date_to = qs.get("to", "")      # YYYY-MM-DD
@@ -125,6 +130,10 @@ def _resolve_date_range(qs):
         return date_from, now.strftime("%Y-%m-%d")
     if days_back == 0:
         return "0000-01-01", "9999-12-31"
+    if days_back == 1:
+        # "Today" — just today's date
+        today = now.strftime("%Y-%m-%d")
+        return today, today
     start = (now - timedelta(days=days_back)).strftime("%Y-%m-%d")
     end = now.strftime("%Y-%m-%d")
     return start, end
