@@ -308,10 +308,30 @@
             const baseUrl = window.PB_CONFIG?.apiBase || window.location.origin;
             document.getElementById('project-endpoint').textContent = `${baseUrl}/ingest`;
             const displayKey = PBAuth.isAdmin() ? project.api_key : '••••••••••••';
-            document.getElementById('sdk-snippet').textContent =
-                `from pulseboard import PulseBoard\n` +
-                `pb = PulseBoard(api_key="${displayKey}", endpoint="${baseUrl}/ingest")\n` +
-                `pb.startup(version="1.0")`;
+
+            // Multi-language SDK snippets
+            const _sdkSnippets = {
+                python: `from pulseboard import PulseBoard\n\npb = PulseBoard(\n    api_key="${displayKey}",\n    endpoint="${baseUrl}/ingest"\n)\npb.startup(version="1.0")\npb.track("my_event", feature="login", cost_usd=0.05)`,
+                javascript: `// npm install pulseboard  (or include via <script>)\nimport { PulseBoard } from 'pulseboard';\n\nconst pb = new PulseBoard({\n  apiKey: '${displayKey}',\n  endpoint: '${baseUrl}/ingest'\n});\npb.startup({ version: '1.0' });\npb.track('my_event', { feature: 'login', cost_usd: 0.05 });`,
+                curl: `# Send an event via cURL\ncurl -X POST ${baseUrl}/ingest \\\n  -H "Content-Type: application/json" \\\n  -H "X-API-Key: ${displayKey}" \\\n  -d '{\n    "event": "my_event",\n    "properties": {\n      "version": "1.0",\n      "feature": "login",\n      "cost_usd": 0.05\n    }\n  }'`,
+                go: `package main\n\nimport (\n    "bytes"\n    "encoding/json"\n    "net/http"\n)\n\nfunc trackEvent(event string, props map[string]interface{}) {\n    payload := map[string]interface{}{\n        "event":      event,\n        "properties": props,\n    }\n    body, _ := json.Marshal(payload)\n    req, _ := http.NewRequest("POST", "${baseUrl}/ingest", bytes.NewBuffer(body))\n    req.Header.Set("Content-Type", "application/json")\n    req.Header.Set("X-API-Key", "${displayKey}")\n    http.DefaultClient.Do(req)\n}`,
+                java: `// Using java.net.http (Java 11+)\nimport java.net.http.*;\nimport java.net.URI;\n\nvar client = HttpClient.newHttpClient();\nvar body = \"""{\n  "event": "my_event",\n  "properties": {\n    "version": "1.0",\n    "feature": "login"\n  }\n}\""";\nvar request = HttpRequest.newBuilder()\n    .uri(URI.create("${baseUrl}/ingest"))\n    .header("Content-Type", "application/json")\n    .header("X-API-Key", "${displayKey}")\n    .POST(HttpRequest.BodyPublishers.ofString(body))\n    .build();\nclient.sendAsync(request, HttpResponse.BodyHandlers.ofString());`,
+            };
+            window._sdkSnippets = _sdkSnippets;
+            document.getElementById('sdk-snippet').textContent = _sdkSnippets.python;
+
+            // SDK language tab switching
+            document.getElementById('sdk-lang-tabs')?.addEventListener('click', (e) => {
+                const btn = e.target.closest('[data-lang]');
+                if (!btn) return;
+                const lang = btn.dataset.lang;
+                document.getElementById('sdk-snippet').textContent = _sdkSnippets[lang] || '';
+                document.querySelectorAll('#sdk-lang-tabs button').forEach(b => {
+                    b.className = b === btn
+                        ? 'px-2.5 py-1 rounded text-[10px] font-medium bg-pb-accent text-white'
+                        : 'px-2.5 py-1 rounded text-[10px] font-medium bg-pb-bg border border-pb-border text-pb-muted hover:border-pb-accent';
+                });
+            });
 
             // GitHub fields
             const ghRepo = document.getElementById('project-github-repo');
@@ -437,20 +457,20 @@
             </div>
         `).join('');
 
-        // Country list
-        const countryList = document.getElementById('country-list');
+        // Country donut + list
         const countries = data.countries || [];
-        const maxC = countries[0]?.count || 1;
-        countryList.innerHTML = countries.map(c => `
-            <div class="flex items-center gap-2" title="${esc(c.name)} — ${c.count} unique deployments">
-                <span class="text-xs w-8 text-center flex-shrink-0">${countryFlag(c.name)}</span>
-                <span class="text-xs min-w-[2rem] truncate text-pb-text">${esc(c.name)}</span>
-                <div class="flex-1 h-2 rounded-full bg-pb-bg overflow-hidden">
-                    <div class="h-full rounded-full bg-gradient-to-r from-pb-green to-cyan-500" style="width: ${Math.round(c.count / maxC * 100)}%"></div>
-                </div>
-                <span class="text-xs text-pb-muted w-10 text-right flex-shrink-0">${c.count}</span>
-            </div>
-        `).join('');
+        PBCharts.doughnut('chart-countries', countries);
+        const countryList = document.getElementById('country-list');
+        const countryTotal = countries.reduce((s, c) => s + c.count, 0);
+        countryList.innerHTML = countries.map(c => {
+            const pct = countryTotal > 0 ? Math.round(c.count / countryTotal * 100) : 0;
+            return `<div class="flex items-center gap-1.5 text-xs" title="${esc(c.name)} — ${c.count} unique deployments (${pct}%)">
+                <span class="w-5 text-center flex-shrink-0">${countryFlag(c.name)}</span>
+                <span class="text-pb-text flex-1 truncate">${esc(c.name)}</span>
+                <span class="text-pb-muted font-mono">${c.count}</span>
+                <span class="text-[9px] text-pb-muted">(${pct}%)</span>
+            </div>`;
+        }).join('') || '<p class="text-[10px] text-pb-muted">No country data</p>';
 
         // Model list
         const modelList = document.getElementById('model-list');
@@ -503,9 +523,9 @@
             return;
         }
 
-        // Table header
+        // Table with sticky header
         let html = `<table class="w-full text-[11px] border-collapse">
-            <thead>
+            <thead class="sticky top-0 bg-pb-card z-10">
                 <tr class="text-left text-[9px] text-pb-muted uppercase tracking-wider border-b border-pb-border/50">
                     <th class="py-1.5 pr-2 w-8 text-right">#</th>
                     <th class="py-1.5 px-2">Event</th>
