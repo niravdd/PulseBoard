@@ -490,29 +490,55 @@
     async function loadEvents(projectId) {
         const data = await PBAuth.api(`/stats/${projectId}/events?limit=100&${_buildDateParams()}`);
         const list = document.getElementById('events-list');
+        const countEl = document.getElementById('events-count');
         const events = data.events || [];
-        const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+        const total = events.length;
 
-        list.innerHTML = events.map(e => {
+        if (countEl) countEl.textContent = total > 0 ? `(${total})` : '';
+
+        if (total === 0) {
+            list.innerHTML = '<p class="text-pb-muted text-center py-4 text-xs">No events in this period</p>';
+            return;
+        }
+
+        // Table header
+        let html = `<table class="w-full text-[11px] border-collapse">
+            <thead>
+                <tr class="text-left text-[9px] text-pb-muted uppercase tracking-wider border-b border-pb-border/50">
+                    <th class="py-1.5 pr-2 w-8 text-right">#</th>
+                    <th class="py-1.5 px-2">Event</th>
+                    <th class="py-1.5 px-2">ID</th>
+                    <th class="py-1.5 px-2">Details</th>
+                    <th class="py-1.5 px-2 text-right">Cost</th>
+                    <th class="py-1.5 pl-2 text-right">Time</th>
+                </tr>
+            </thead><tbody>`;
+
+        events.forEach((e, i) => {
+            const rowNum = total - i;
             const ts = e.timestamp_id?.split('#')[0] || '';
             const time = ts ? new Date(ts).toLocaleString(undefined, {
                 month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit',
-                timeZoneName: 'short',
             }) : '';
             const props = typeof e.properties === 'object' ? e.properties : {};
             const uid = (e.distinct_id || '').substring(0, 8);
             const cost = parseFloat(e.cost_usd || props.cost_usd || 0);
-            const costStr = cost > 0 ? `$${cost.toFixed(2)}` : '';
-            return `
-                <div class="flex items-center gap-2 py-1.5 border-b border-pb-border/30 last:border-0 min-w-[550px]">
-                    <span class="px-1.5 py-0.5 rounded bg-pb-accent/10 text-pb-accent font-medium flex-shrink-0">${esc(e.event_type)}</span>
-                    <span class="text-pb-muted flex-shrink-0 font-mono" title="Deployment: ${esc(e.distinct_id || '')}">${uid}</span>
-                    <span class="text-pb-muted flex-shrink-0">${[props.version, props.os, e.country].filter(Boolean).join(' · ')}</span>
-                    ${costStr ? `<span class="text-pb-accent flex-shrink-0 font-medium">${costStr}</span>` : ''}
-                    <span class="ml-auto text-pb-muted/60 flex-shrink-0 whitespace-nowrap">${time}</span>
-                </div>
-            `;
-        }).join('') || '<p class="text-pb-muted text-center py-4">No events in this period</p>';
+            const costStr = cost > 0 ? `~$${cost.toFixed(2)}` : '';
+            const details = [props.version, props.os, e.country].filter(Boolean).join(' · ');
+
+            html += `
+                <tr class="border-b border-pb-border/20 hover:bg-pb-bg/30">
+                    <td class="py-1.5 pr-2 text-right text-pb-muted/40 font-mono">${rowNum}</td>
+                    <td class="py-1.5 px-2"><span class="px-1.5 py-0.5 rounded bg-pb-accent/10 text-pb-accent font-medium whitespace-nowrap">${esc(e.event_type)}</span></td>
+                    <td class="py-1.5 px-2 font-mono text-pb-muted" title="Deployment: ${esc(e.distinct_id || '')}">${uid}</td>
+                    <td class="py-1.5 px-2 text-pb-muted break-words">${esc(details)}</td>
+                    <td class="py-1.5 px-2 text-right font-mono ${cost > 0 ? 'text-pb-accent font-medium' : 'text-pb-muted/30'}">${costStr || '-'}</td>
+                    <td class="py-1.5 pl-2 text-right text-pb-muted/60 whitespace-nowrap">${time}</td>
+                </tr>`;
+        });
+
+        html += '</tbody></table>';
+        list.innerHTML = html;
     }
 
     // ── Project Actions ──────────────────────────────────────────────
