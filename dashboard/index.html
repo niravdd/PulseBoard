@@ -388,10 +388,14 @@
                         </div>
                     </div>
                     </details>
-                    <!-- Quick Integration (multi-language) -->
-                    <details class="mt-4 pt-3 border-t border-pb-border admin-only">
-                        <summary class="text-xs text-pb-muted uppercase tracking-wider mb-2 cursor-pointer hover:text-pb-accent select-none">Quick Integration</summary>
-                        <div class="flex gap-1 mb-2" id="sdk-lang-tabs">
+                    </div>
+                </details>
+
+                <!-- Quick Integration (own card, matches Project Settings style) -->
+                <details class="rounded-xl bg-pb-card border border-pb-border admin-only">
+                    <summary class="p-4 text-sm font-semibold cursor-pointer hover:text-pb-accent transition-colors select-none">Quick Integration</summary>
+                    <div class="px-4 pb-4">
+                        <div class="flex gap-1 mb-3" id="sdk-lang-tabs">
                             <button class="px-2.5 py-1 rounded text-[10px] font-medium bg-pb-accent text-white" data-lang="python">Python</button>
                             <button class="px-2.5 py-1 rounded text-[10px] font-medium bg-pb-bg border border-pb-border text-pb-muted hover:border-pb-accent" data-lang="javascript">JavaScript</button>
                             <button class="px-2.5 py-1 rounded text-[10px] font-medium bg-pb-bg border border-pb-border text-pb-muted hover:border-pb-accent" data-lang="curl">cURL</button>
@@ -399,7 +403,6 @@
                             <button class="px-2.5 py-1 rounded text-[10px] font-medium bg-pb-bg border border-pb-border text-pb-muted hover:border-pb-accent" data-lang="java">Java</button>
                         </div>
                         <pre id="sdk-snippet" class="bg-pb-bg p-3 rounded-lg text-xs font-mono text-pb-text/70 overflow-x-auto select-all"></pre>
-                    </details>
                     </div>
                 </details>
             </div>
