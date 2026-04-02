@@ -374,7 +374,12 @@
     async function loadOverview(projectId) {
         const data = await PBAuth.api(`/stats/${projectId}/overview`);
         const fmt = (n) => (n || 0).toLocaleString();
-        const fmtCost = (n) => `~$${(n || 0).toFixed(2)}`;
+        const fmtCost = (n) => {
+            const v = n || 0;
+            if (v === 0) return '-';
+            if (v < 0.01) return `~$${v.toFixed(4)}`;
+            return `~$${v.toFixed(2)}`;
+        };
 
         document.getElementById('stat-today').textContent = fmt(data.today?.events);
         document.getElementById('stat-today-cost').textContent = fmtCost(data.today?.cost_usd);
@@ -506,7 +511,10 @@
 
         // Cost banner
         const costBanner = document.getElementById('total-cost-banner');
-        if (costBanner) costBanner.textContent = `~$${(data.total_cost_usd || 0).toFixed(2)}`;
+        if (costBanner) {
+            const tc = data.total_cost_usd || 0;
+            costBanner.textContent = tc === 0 ? '-' : tc < 0.01 ? `~$${tc.toFixed(4)}` : `~$${tc.toFixed(2)}`;
+        }
     }
 
     async function loadEvents(projectId) {
@@ -545,7 +553,7 @@
             const props = typeof e.properties === 'object' ? e.properties : {};
             const uid = (e.distinct_id || '').substring(0, 8);
             const cost = parseFloat(e.cost_usd || props.cost_usd || 0);
-            const costStr = cost > 0 ? `~$${cost.toFixed(2)}` : '';
+            const costStr = cost > 0 ? (cost < 0.01 ? `~$${cost.toFixed(4)}` : `~$${cost.toFixed(2)}`) : '';
             const details = [props.version, props.os, e.country].filter(Boolean).join(' · ');
 
             html += `
@@ -643,10 +651,11 @@
                     document.getElementById('gh-views').textContent = totalViews.toLocaleString();
                     document.getElementById('gh-views-unique').textContent = `${totalUniqueViews} unique visitors`;
                 } else {
-                    document.getElementById('gh-clones').textContent = (data.total_clones_14d || 0).toLocaleString();
-                    document.getElementById('gh-clones-unique').textContent = `${data.unique_cloners_14d || 0} unique cloners`;
-                    document.getElementById('gh-views').textContent = (data.total_views_14d || 0).toLocaleString();
-                    document.getElementById('gh-views-unique').textContent = `${data.unique_visitors_14d || 0} unique visitors`;
+                    // No daily data for this period — show 0 (not stale 14-day totals)
+                    document.getElementById('gh-clones').textContent = '0';
+                    document.getElementById('gh-clones-unique').textContent = `0 unique cloners`;
+                    document.getElementById('gh-views').textContent = '0';
+                    document.getElementById('gh-views-unique').textContent = `0 unique visitors`;
                 }
             } else {
                 document.getElementById('gh-clones').textContent = '—';

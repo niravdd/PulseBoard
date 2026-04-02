@@ -65,8 +65,8 @@ def _overview(project_id, qs):
     for d in days:
         unique_lifetime.update(d.get("unique_ids", set()))
 
-    # Last 30 days
-    start_30d = (now - timedelta(days=30)).strftime("%Y-%m-%d")
+    # Last 30 days (today + 29 previous = 30 days total)
+    start_30d = (now - timedelta(days=29)).strftime("%Y-%m-%d")
     days_30 = [d for d in days if d.get("sk", "") >= f"day#{start_30d}"]
     total_30d = sum(_dec(d.get("total_events", 0)) for d in days_30)
     cost_30d = sum(_dec_float(d.get("total_cost_usd", 0)) for d in days_30)
@@ -74,8 +74,8 @@ def _overview(project_id, qs):
     for d in days_30:
         unique_30d.update(d.get("unique_ids", set()))
 
-    # Last 7 days
-    start_7d = (now - timedelta(days=7)).strftime("%Y-%m-%d")
+    # Last 7 days (today + 6 previous = 7 days total)
+    start_7d = (now - timedelta(days=6)).strftime("%Y-%m-%d")
     days_7 = [d for d in days if d.get("sk", "") >= f"day#{start_7d}"]
     total_7d = sum(_dec(d.get("total_events", 0)) for d in days_7)
     cost_7d = sum(_dec_float(d.get("total_cost_usd", 0)) for d in days_7)
@@ -134,7 +134,7 @@ def _resolve_date_range(qs):
         # "Today" — just today's date
         today = now.strftime("%Y-%m-%d")
         return today, today
-    start = (now - timedelta(days=days_back)).strftime("%Y-%m-%d")
+    start = (now - timedelta(days=days_back - 1)).strftime("%Y-%m-%d")
     end = now.strftime("%Y-%m-%d")
     return start, end
 
