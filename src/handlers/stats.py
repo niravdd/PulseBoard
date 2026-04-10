@@ -87,7 +87,6 @@ def _overview(project_id, qs):
     days_today = [d for d in days if d.get("sk") == f"day#{today}"]
     total_today = sum(_dec(d.get("total_events", 0)) for d in days_today)
     cost_today = sum(_dec_float(d.get("total_cost_usd", 0)) for d in days_today)
-
     # Top version, OS, country — use last 7 days for relevance (not all-time)
     # All-time counts bias toward old versions that accumulated more events.
     versions_recent = {}

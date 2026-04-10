@@ -104,13 +104,19 @@ def handler(event, context):
     events_table().put_item(Item=record)
 
     # Update real-time aggregates (atomic counters)
+    # Cost-only events (*.cost suffix) only update total_cost_usd — they don't count
+    # as separate events or inflate model/version/OS counts (the paired .generate
+    # event already counted those).
     model = properties.get("model", "")
-    _increment_aggregate(project_id, f"day#{event_date}", event_type, distinct_id,
-                         properties.get("version", ""), properties.get("os", ""), country, cost_usd, model)
-    _increment_aggregate(project_id, f"week#{event_week}", event_type, distinct_id,
-                         properties.get("version", ""), properties.get("os", ""), country, cost_usd, model)
-    _increment_aggregate(project_id, f"month#{event_month}", event_type, distinct_id,
-                         properties.get("version", ""), properties.get("os", ""), country, cost_usd, model)
+    is_cost_event = event_type.endswith(".cost")
+
+    for period_key in [f"day#{event_date}", f"week#{event_week}", f"month#{event_month}"]:
+        if is_cost_event:
+            _increment_cost_only(project_id, period_key, cost_usd)
+        else:
+            _increment_aggregate(project_id, period_key, event_type, distinct_id,
+                                 properties.get("version", ""), properties.get("os", ""),
+                                 country, cost_usd, model)
 
     return ok({"status": "ok", "project": project.get("name", project_id)})
 
@@ -124,6 +130,27 @@ def _resolve_project(api_key: str) -> dict | None:
     )
     items = result.get("Items", [])
     return items[0] if items else None
+
+
+def _increment_cost_only(project_id, period_key, cost_usd):
+    """Update only total_cost_usd for cost-only events (*.cost suffix).
+
+    These events are paired with a .generate event that already counted
+    the action, model, version, etc. We only need the cost from this one.
+    """
+    if cost_usd <= 0:
+        return
+    table = aggregates_table()
+    key = {"pk": project_id, "sk": period_key}
+    try:
+        table.update_item(
+            Key=key,
+            UpdateExpression="SET total_cost_usd = if_not_exists(total_cost_usd, :zero) + :cost",
+            ExpressionAttributeValues={":cost": cost_usd, ":zero": Decimal(0)},
+        )
+    except Exception as exc:
+        import logging
+        logging.getLogger(__name__).warning("Cost-only update failed for %s/%s: %s", project_id, period_key, exc)
 
 
 def _increment_aggregate(project_id, period_key, event_type, distinct_id, version, os_name, country, cost_usd=Decimal(0), model=""):
