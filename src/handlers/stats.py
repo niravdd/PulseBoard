@@ -325,10 +325,11 @@ def _events(project_id, qs):
         key_cond = Key("project_id").eq(project_id)
 
     # Get total count for pagination (separate count query)
+    # Substring match: "cost" matches image_studio.cost, video_studio.cost, etc.
+    from boto3.dynamodb.conditions import Attr
     count_kwargs = {"KeyConditionExpression": key_cond, "Select": "COUNT"}
     if event_type_filter:
-        from boto3.dynamodb.conditions import Attr
-        count_kwargs["FilterExpression"] = Attr("event_type").eq(event_type_filter)
+        count_kwargs["FilterExpression"] = Attr("event_type").contains(event_type_filter)
     total_count = 0
     while True:
         count_result = events_table().query(**count_kwargs)
@@ -344,8 +345,7 @@ def _events(project_id, qs):
     }
 
     if event_type_filter:
-        from boto3.dynamodb.conditions import Attr
-        kwargs["FilterExpression"] = Attr("event_type").eq(event_type_filter)
+        kwargs["FilterExpression"] = Attr("event_type").contains(event_type_filter)
         # With FilterExpression, Limit applies pre-filter — fetch more to compensate
         kwargs["Limit"] = limit * 10
     else:
