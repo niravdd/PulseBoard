@@ -43,45 +43,88 @@
                 this._instances[canvasId].destroy();
             }
 
+            const hasCost = series.some(s => (s.cost_usd || 0) > 0);
+
+            const datasets = [
+                {
+                    label: 'Events',
+                    data: series.map(s => s.events),
+                    borderColor: COLORS.accent,
+                    backgroundColor: COLORS.accentLight,
+                    fill: true,
+                    tension: 0.3,
+                    pointRadius: 3,
+                    pointHoverRadius: 6,
+                    yAxisID: 'y',
+                },
+                {
+                    label: 'Unique Deployments',
+                    data: series.map(s => s.unique),
+                    borderColor: COLORS.green,
+                    backgroundColor: COLORS.greenLight,
+                    fill: true,
+                    tension: 0.3,
+                    pointRadius: 3,
+                    pointHoverRadius: 6,
+                    yAxisID: 'y',
+                },
+            ];
+
+            if (hasCost) {
+                datasets.push({
+                    label: 'Cost (USD)',
+                    data: series.map(s => s.cost_usd || 0),
+                    borderColor: COLORS.amber,
+                    backgroundColor: 'rgba(245, 158, 11, 0.08)',
+                    fill: true,
+                    tension: 0.3,
+                    pointRadius: 2,
+                    pointHoverRadius: 5,
+                    borderDash: [4, 2],
+                    yAxisID: 'yCost',
+                });
+            }
+
+            const scales = {
+                x: { grid: { display: false }, ticks: { maxRotation: 45 } },
+                y: { beginAtZero: true, grid: { color: COLORS.grid }, position: 'left' },
+            };
+            if (hasCost) {
+                scales.yCost = {
+                    beginAtZero: true,
+                    position: 'right',
+                    grid: { display: false },
+                    ticks: {
+                        callback: (v) => v === 0 ? '' : `$${v < 0.01 ? v.toFixed(4) : v.toFixed(2)}`,
+                        font: { size: 10 },
+                        color: COLORS.amber,
+                    },
+                };
+            }
+
             this._instances[canvasId] = new Chart(ctx, {
                 type: 'line',
-                data: {
-                    labels: series.map(s => s.date),
-                    datasets: [
-                        {
-                            label: 'Events',
-                            data: series.map(s => s.events),
-                            borderColor: COLORS.accent,
-                            backgroundColor: COLORS.accentLight,
-                            fill: true,
-                            tension: 0.3,
-                            pointRadius: 3,
-                            pointHoverRadius: 6,
-                        },
-                        {
-                            label: 'Unique Deployments',
-                            data: series.map(s => s.unique),
-                            borderColor: COLORS.green,
-                            backgroundColor: COLORS.greenLight,
-                            fill: true,
-                            tension: 0.3,
-                            pointRadius: 3,
-                            pointHoverRadius: 6,
-                        },
-                    ],
-                },
+                data: { labels: series.map(s => s.date), datasets },
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
                     interaction: { intersect: false, mode: 'index' },
                     plugins: {
                         legend: { position: 'top', labels: { usePointStyle: true, pointStyle: 'circle', padding: 16 } },
-                        tooltip: { backgroundColor: '#1a1f35', borderColor: '#2d3555', borderWidth: 1, cornerRadius: 8, padding: 12 },
+                        tooltip: {
+                            backgroundColor: '#1a1f35', borderColor: '#2d3555', borderWidth: 1, cornerRadius: 8, padding: 12,
+                            callbacks: {
+                                label: (ctx) => {
+                                    if (ctx.dataset.yAxisID === 'yCost') {
+                                        const v = ctx.parsed.y;
+                                        return ` Cost: ${v < 0.01 ? `~$${v.toFixed(4)}` : `~$${v.toFixed(2)}`}`;
+                                    }
+                                    return ` ${ctx.dataset.label}: ${ctx.parsed.y}`;
+                                },
+                            },
+                        },
                     },
-                    scales: {
-                        x: { grid: { display: false }, ticks: { maxRotation: 45 } },
-                        y: { beginAtZero: true, grid: { color: COLORS.grid } },
-                    },
+                    scales,
                 },
             });
         },

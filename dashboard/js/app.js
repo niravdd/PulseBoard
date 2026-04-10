@@ -130,6 +130,26 @@
             if (currentProject) _doRefresh(currentProject.project_id);
         });
 
+        // Events search (debounced)
+        let _eventsSearchTimer = null;
+        document.getElementById('events-search')?.addEventListener('input', (e) => {
+            clearTimeout(_eventsSearchTimer);
+            _eventsSearchTimer = setTimeout(() => {
+                _eventsFilter = e.target.value.trim();
+                if (currentProject) loadEvents(currentProject.project_id);
+            }, 400);
+        });
+
+        // Events pagination
+        document.getElementById('events-prev')?.addEventListener('click', () => {
+            // Go back to page 1 (cursor-based pagination doesn't easily support backward)
+            if (currentProject && _eventsPage > 1) loadEvents(currentProject.project_id);
+        });
+        document.getElementById('events-next')?.addEventListener('click', () => {
+            const nextBtn = document.getElementById('events-next');
+            if (currentProject && nextBtn?._cursor) loadEvents(currentProject.project_id, nextBtn._cursor, _eventsPage + 1);
+        });
+
         // Admin management
         document.getElementById('btn-manage-admins')?.addEventListener('click', () => {
             document.getElementById('admin-modal')?.classList.remove('hidden');
@@ -423,13 +443,17 @@
         if (depList) {
             depList.innerHTML = deployments.length === 0
                 ? '<p class="text-pb-muted text-center py-4">No deployment data</p>'
-                : deployments.map(d => `
+                : deployments.map(d => {
+                    const costVal = d.cost_usd || 0;
+                    const costStr = costVal > 0 ? (costVal < 0.01 ? `~$${costVal.toFixed(4)}` : `~$${costVal.toFixed(2)}`) : '';
+                    return `
                     <div class="flex items-center gap-2 py-1 border-b border-pb-border/30 last:border-0" title="Full ID: ${esc(d.full_id)}">
                         <span class="font-mono text-pb-accent flex-shrink-0">${esc(d.id)}</span>
                         <span class="text-pb-text truncate">${esc(d.version || 'unknown')}</span>
+                        ${costStr ? `<span class="text-[10px] font-mono text-pb-amber flex-shrink-0">${costStr}</span>` : ''}
                         <span class="ml-auto text-pb-muted flex-shrink-0">${[d.os, d.country].filter(Boolean).join(' · ')}</span>
-                    </div>
-                `).join('');
+                    </div>`;
+                }).join('');
         }
 
         // OS doughnut + count list
@@ -483,15 +507,19 @@
         const maxM = models[0]?.count || 1;
         modelList.innerHTML = models.length === 0
             ? '<p class="text-xs text-pb-muted">No model data yet</p>'
-            : models.map(m => `
-                <div class="flex items-center gap-2" title="${esc(m.name || 'untagged')} — ${m.count} events">
-                    <span class="text-xs font-mono w-2/5 truncate ${m.name ? 'text-pb-text' : 'text-pb-muted italic'}">${esc(m.name || 'untagged')}</span>
+            : models.map(m => {
+                const mc = m.cost_usd || 0;
+                const mcStr = mc > 0 ? (mc < 0.01 ? `~$${mc.toFixed(4)}` : `~$${mc.toFixed(2)}`) : '';
+                return `
+                <div class="flex items-center gap-2" title="${esc(m.name || 'untagged')} — ${m.count} events${mc > 0 ? `, ~$${mc.toFixed(4)}` : ''}">
+                    <span class="text-xs font-mono w-1/3 truncate ${m.name ? 'text-pb-text' : 'text-pb-muted italic'}">${esc(m.name || 'untagged')}</span>
                     <div class="flex-1 h-2 rounded-full bg-pb-bg overflow-hidden">
                         <div class="h-full rounded-full bg-gradient-to-r from-pb-amber to-orange-500" style="width: ${Math.round(m.count / maxM * 100)}%"></div>
                     </div>
-                    <span class="text-xs text-pb-muted w-10 text-right flex-shrink-0">${m.count}</span>
-                </div>
-            `).join('');
+                    <span class="text-xs text-pb-muted w-8 text-right flex-shrink-0">${m.count}</span>
+                    ${mcStr ? `<span class="text-[10px] font-mono text-pb-accent w-14 text-right flex-shrink-0">${mcStr}</span>` : '<span class="w-14 flex-shrink-0"></span>'}
+                </div>`;
+            }).join('');
 
         // Event type list
         const etList = document.getElementById('event-type-list');
@@ -517,19 +545,45 @@
         }
     }
 
-    async function loadEvents(projectId) {
-        const data = await PBAuth.api(`/stats/${projectId}/events?limit=100&${_buildDateParams()}`);
+    let _eventsCursor = null;
+    let _eventsPage = 1;
+    let _eventsTotal = 0;
+    let _eventsFilter = '';
+    const EVENTS_PER_PAGE = 100;
+
+    async function loadEvents(projectId, cursor, page) {
+        _eventsPage = page || 1;
+        _eventsCursor = cursor || null;
+        const filterParam = _eventsFilter ? `&event_type=${encodeURIComponent(_eventsFilter)}` : '';
+        const cursorParam = _eventsCursor ? `&cursor=${encodeURIComponent(_eventsCursor)}` : '';
+        const data = await PBAuth.api(`/stats/${projectId}/events?limit=${EVENTS_PER_PAGE}&${_buildDateParams()}${filterParam}${cursorParam}`);
         const list = document.getElementById('events-list');
         const countEl = document.getElementById('events-count');
         const events = data.events || [];
-        const total = events.length;
+        _eventsTotal = data.total_count || 0;
+        const totalPages = Math.max(1, Math.ceil(_eventsTotal / EVENTS_PER_PAGE));
 
-        if (countEl) countEl.textContent = total > 0 ? `(${total})` : '';
+        if (countEl) countEl.textContent = _eventsTotal > 0 ? `(${_eventsTotal.toLocaleString()} total)` : '';
 
-        if (total === 0) {
+        // Pagination controls
+        const pagEl = document.getElementById('events-pagination');
+        const pageInfo = document.getElementById('events-page-info');
+        const prevBtn = document.getElementById('events-prev');
+        const nextBtn = document.getElementById('events-next');
+        if (pagEl) {
+            pagEl.classList.toggle('hidden', _eventsTotal <= EVENTS_PER_PAGE);
+            if (pageInfo) pageInfo.textContent = `Page ${_eventsPage} of ${totalPages}`;
+            if (prevBtn) prevBtn.disabled = _eventsPage <= 1;
+            if (nextBtn) { nextBtn.disabled = !data.cursor; nextBtn._cursor = data.cursor; }
+        }
+
+        if (events.length === 0) {
             list.innerHTML = '<p class="text-pb-muted text-center py-4 text-xs">No events in this period</p>';
             return;
         }
+
+        // Row numbering: descending from total. Page 1 starts at total, page 2 at total-100, etc.
+        const startNum = _eventsTotal - ((_eventsPage - 1) * EVENTS_PER_PAGE);
 
         // Table with sticky header
         let html = `<table class="w-full text-[11px] border-collapse">
@@ -545,7 +599,7 @@
             </thead><tbody>`;
 
         events.forEach((e, i) => {
-            const rowNum = total - i;
+            const rowNum = startNum - i;
             const ts = e.timestamp_id?.split('#')[0] || '';
             const time = ts ? new Date(ts).toLocaleString(undefined, {
                 month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit',

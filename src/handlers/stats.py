@@ -88,17 +88,28 @@ def _overview(project_id, qs):
     total_today = sum(_dec(d.get("total_events", 0)) for d in days_today)
     cost_today = sum(_dec_float(d.get("total_cost_usd", 0)) for d in days_today)
 
-    # Top version, OS, country from lifetime
-    versions = {}
-    os_breakdown = {}
-    countries = {}
-    for d in days:
+    # Top version, OS, country — use last 7 days for relevance (not all-time)
+    # All-time counts bias toward old versions that accumulated more events.
+    versions_recent = {}
+    os_recent = {}
+    countries_recent = {}
+    for d in days_7:
         for v, c in (d.get("versions") or {}).items():
-            versions[v] = versions.get(v, 0) + _dec(c)
+            versions_recent[v] = versions_recent.get(v, 0) + _dec(c)
         for o, c in (d.get("os_breakdown") or {}).items():
-            os_breakdown[o] = os_breakdown.get(o, 0) + _dec(c)
+            os_recent[o] = os_recent.get(o, 0) + _dec(c)
         for co, c in (d.get("countries") or {}).items():
-            countries[co] = countries.get(co, 0) + _dec(c)
+            countries_recent[co] = countries_recent.get(co, 0) + _dec(c)
+
+    # Fallback to all-time if no recent data
+    if not versions_recent:
+        for d in days:
+            for v, c in (d.get("versions") or {}).items():
+                versions_recent[v] = versions_recent.get(v, 0) + _dec(c)
+    if not os_recent:
+        for d in days:
+            for o, c in (d.get("os_breakdown") or {}).items():
+                os_recent[o] = os_recent.get(o, 0) + _dec(c)
 
     return ok({
         "project_id": project_id,
@@ -106,9 +117,9 @@ def _overview(project_id, qs):
         "last_7d": {"events": total_7d, "unique_deployments": len(unique_7d), "cost_usd": round(cost_7d, 4)},
         "last_30d": {"events": total_30d, "unique_deployments": len(unique_30d), "cost_usd": round(cost_30d, 4)},
         "lifetime": {"events": total_lifetime, "unique_deployments": len(unique_lifetime), "cost_usd": round(cost_lifetime, 4)},
-        "top_version": _top_n(versions, 1),
-        "top_os": _top_n(os_breakdown, 1),
-        "top_country": _top_n(countries, 1),
+        "top_version": _top_n(versions_recent, 1),
+        "top_os": _top_n(os_recent, 1),
+        "top_country": _top_n(countries_recent, 1),
     })
 
 
@@ -198,9 +209,12 @@ def _breakdown(project_id, qs):
 
     # Query raw events for unique deployment counts per dimension
     # This gives accurate "unique users per country" etc.
+    # Also collects per-model costs and per-deployment costs.
     unique_countries = {}
     unique_os = {}
     unique_versions = {}
+    model_costs = {}       # model_name → total_cost_usd
+    deployment_costs = {}  # distinct_id → total_cost_usd
     # Track the LATEST version/OS/country per deployment (not cumulative).
     # For each distinct_id, keep only the most recent event's values.
     # This means versions show "currently running" not "ever used".
@@ -212,12 +226,22 @@ def _breakdown(project_id, qs):
             raw_kwargs["FilterExpression"] = Key("event_date").between(date_from, date_to.rstrip("~"))
         while True:
             result = events_table().query(**raw_kwargs,
-                ProjectionExpression="distinct_id, country, os, version, timestamp_id")
+                ProjectionExpression="distinct_id, country, os, version, timestamp_id, cost_usd, model")
             for item in result.get("Items", []):
                 did = item.get("distinct_id", "")
+                ts = item.get("timestamp_id", "")
+
+                # Per-model cost
+                m = item.get("model", "")
+                c_usd = _dec_float(item.get("cost_usd", 0))
+                if m and c_usd > 0:
+                    model_costs[m] = model_costs.get(m, 0.0) + c_usd
+                # Per-deployment cost
+                if did and c_usd > 0:
+                    deployment_costs[did] = deployment_costs.get(did, 0.0) + c_usd
+
                 if not did:
                     continue
-                ts = item.get("timestamp_id", "")
                 existing = latest_per_deployment.get(did)
                 if not existing or ts > existing["timestamp_id"]:
                     latest_per_deployment[did] = {
@@ -247,7 +271,7 @@ def _breakdown(project_id, qs):
     def _unique_map(m):
         return sorted([{"name": k, "count": len(v)} for k, v in m.items()], key=lambda x: x["count"], reverse=True)
 
-    # Build per-deployment list: [{id (truncated), version, os, country}]
+    # Build per-deployment list with costs
     deployments = sorted(
         [
             {
@@ -256,12 +280,19 @@ def _breakdown(project_id, qs):
                 "version": info["version"],
                 "os": info["os"],
                 "country": info["country"],
+                "cost_usd": round(deployment_costs.get(did, 0.0), 4),
             }
             for did, info in latest_per_deployment.items()
         ],
         key=lambda x: x["version"] or "",
         reverse=True,
     )
+
+    # Build models list with costs
+    models_with_cost = []
+    for item in _sorted_map(models):
+        item["cost_usd"] = round(model_costs.get(item["name"], 0.0), 4)
+        models_with_cost.append(item)
 
     return ok({
         "project_id": project_id,
@@ -271,38 +302,79 @@ def _breakdown(project_id, qs):
         "os": _unique_map(unique_os) if unique_os else _sorted_map(os_breakdown),
         "countries": _unique_map(unique_countries) if unique_countries else _sorted_map(countries),
         "event_types": _sorted_map(event_types),
-        "models": _sorted_map(models),
+        "models": models_with_cost,
         "deployments": deployments,
     })
 
 
 def _events(project_id, qs):
-    """Recent raw events, paginated. Supports date filtering via days/from/to params."""
+    """Recent raw events, paginated. Supports date filtering and event_type search."""
     limit = int(qs.get("limit", 50))
     start_key = qs.get("cursor")
+    event_type_filter = qs.get("event_type", "").strip()
 
     # Date filtering — timestamp_id starts with ISO date so we can filter by range
     date_from, date_to = _resolve_date_range(qs)
 
-    kwargs = {
-        "ScanIndexForward": False,  # newest first
-        "Limit": limit,
-    }
-
+    # Build key condition
     if date_from != "0000-01-01" and date_to != "9999-12-31":
-        # Filter by timestamp range (timestamp_id is ISO format: YYYY-MM-DDTHH:MM:SS...)
-        kwargs["KeyConditionExpression"] = (
+        key_cond = (
             Key("project_id").eq(project_id) &
             Key("timestamp_id").between(date_from, date_to + "~")
         )
     else:
-        kwargs["KeyConditionExpression"] = Key("project_id").eq(project_id)
+        key_cond = Key("project_id").eq(project_id)
+
+    # Get total count for pagination (separate count query)
+    count_kwargs = {"KeyConditionExpression": key_cond, "Select": "COUNT"}
+    if event_type_filter:
+        from boto3.dynamodb.conditions import Attr
+        count_kwargs["FilterExpression"] = Attr("event_type").eq(event_type_filter)
+    total_count = 0
+    while True:
+        count_result = events_table().query(**count_kwargs)
+        total_count += count_result.get("Count", 0)
+        if "LastEvaluatedKey" not in count_result:
+            break
+        count_kwargs["ExclusiveStartKey"] = count_result["LastEvaluatedKey"]
+
+    # Fetch events page
+    kwargs = {
+        "KeyConditionExpression": key_cond,
+        "ScanIndexForward": False,  # newest first
+    }
+
+    if event_type_filter:
+        from boto3.dynamodb.conditions import Attr
+        kwargs["FilterExpression"] = Attr("event_type").eq(event_type_filter)
+        # With FilterExpression, Limit applies pre-filter — fetch more to compensate
+        kwargs["Limit"] = limit * 10
+    else:
+        kwargs["Limit"] = limit
 
     if start_key:
         kwargs["ExclusiveStartKey"] = {"project_id": project_id, "timestamp_id": start_key}
 
-    result = events_table().query(**kwargs)
-    items = result.get("Items", [])
+    # For filtered queries, paginate until we have enough matching items
+    items = []
+    next_cursor = None
+    while len(items) < limit:
+        result = events_table().query(**kwargs)
+        for item in result.get("Items", []):
+            items.append(item)
+            if len(items) >= limit:
+                break
+        if "LastEvaluatedKey" not in result:
+            break
+        kwargs["ExclusiveStartKey"] = result["LastEvaluatedKey"]
+
+    # If we have more than limit, trim and set cursor from the last kept item
+    if len(items) > limit:
+        items = items[:limit]
+    if len(items) == limit and "LastEvaluatedKey" in result:
+        next_cursor = items[-1].get("timestamp_id")
+    elif "LastEvaluatedKey" in result:
+        next_cursor = result["LastEvaluatedKey"].get("timestamp_id")
 
     # Parse properties JSON back to dict
     for item in items:
@@ -311,11 +383,7 @@ def _events(project_id, qs):
         except (json.JSONDecodeError, TypeError):
             pass
 
-    next_cursor = None
-    if result.get("LastEvaluatedKey"):
-        next_cursor = result["LastEvaluatedKey"].get("timestamp_id")
-
-    return ok({"events": items, "cursor": next_cursor, "count": len(items)})
+    return ok({"events": items, "cursor": next_cursor, "count": len(items), "total_count": total_count})
 
 
 # ── Helpers ──────────────────────────────────────────────────────────

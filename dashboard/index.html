@@ -241,7 +241,7 @@
                 <!-- Middle Row: Models + Cost | Countries (with donut) -->
                 <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
                     <div class="p-4 rounded-xl bg-pb-card border border-pb-border">
-                        <h3 class="text-sm font-semibold mb-3">Models Used <span class="text-[9px] text-pb-muted font-normal">(total events)</span></h3>
+                        <h3 class="text-sm font-semibold mb-3">Models Used <span class="text-[9px] text-pb-muted font-normal">(events · cost)</span></h3>
                         <div id="model-list" class="space-y-2 max-h-36 overflow-auto pr-2"></div>
                         <!-- Cost (compact, under models) -->
                         <div class="mt-3 pt-3 border-t border-pb-border/50 flex items-center justify-between">
@@ -267,8 +267,16 @@
                         <div id="event-type-list" class="space-y-2 max-h-64 overflow-auto pr-2"></div>
                     </div>
                     <div class="p-4 rounded-xl bg-pb-card border border-pb-border">
-                        <h3 class="text-sm font-semibold mb-3">Recent Events <span id="events-count" class="text-[9px] text-pb-muted font-normal"></span></h3>
+                        <div class="flex items-center justify-between mb-3">
+                            <h3 class="text-sm font-semibold">Recent Events <span id="events-count" class="text-[9px] text-pb-muted font-normal"></span></h3>
+                            <input id="events-search" type="text" placeholder="Filter by event type..." class="px-2.5 py-1 rounded-lg bg-pb-bg border border-pb-border text-xs w-48 focus:outline-none focus:border-pb-accent placeholder:text-pb-muted/50" />
+                        </div>
                         <div id="events-list" class="max-h-96 overflow-auto pr-1 pb-2"></div>
+                        <div id="events-pagination" class="flex items-center justify-between mt-2 pt-2 border-t border-pb-border/50 hidden">
+                            <button id="events-prev" class="px-2.5 py-1 rounded text-[10px] bg-pb-bg border border-pb-border hover:border-pb-accent disabled:opacity-30 disabled:cursor-default">&laquo; Prev</button>
+                            <span id="events-page-info" class="text-[10px] text-pb-muted"></span>
+                            <button id="events-next" class="px-2.5 py-1 rounded text-[10px] bg-pb-bg border border-pb-border hover:border-pb-accent disabled:opacity-30 disabled:cursor-default">Next &raquo;</button>
+                        </div>
                     </div>
                 </div>
 
