@@ -112,11 +112,14 @@ def handler(event, context):
 
     for period_key in [f"day#{event_date}", f"week#{event_week}", f"month#{event_month}"]:
         if is_cost_event:
+            # Cost-only: update total_cost_usd only (no event count, no model/version inflation)
             _increment_cost_only(project_id, period_key, cost_usd)
         else:
+            # Action event: count the event, but do NOT add cost to aggregate
+            # (cost aggregation comes exclusively from .cost suffix events)
             _increment_aggregate(project_id, period_key, event_type, distinct_id,
                                  properties.get("version", ""), properties.get("os", ""),
-                                 country, cost_usd, model)
+                                 country, Decimal(0), model)
 
     return ok({"status": "ok", "project": project.get("name", project_id)})
 
