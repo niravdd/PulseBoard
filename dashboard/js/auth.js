@@ -177,7 +177,7 @@
                     opts.body = JSON.stringify(opts.body);
                 }
                 const url = `${CONFIG.apiBase}${path}`;
-                return fetch(url, { ...opts, headers });
+                return fetch(url, { ...opts, headers, cache: 'no-store' });
             };
 
             let res = await _doFetch();

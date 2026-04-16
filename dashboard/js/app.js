@@ -8,7 +8,7 @@
 
     let currentProject = null;
     let _challengeSession = null;
-    let _currentDays = 30;
+    let _currentDays = 0;  // 0 = lifetime (default)
     let _customFrom = '';
     let _customTo = '';
     let _autoRefreshTimer = null;
@@ -854,10 +854,9 @@
         if (_countdownTimer) clearInterval(_countdownTimer);
         _lastRefresh = Date.now();
 
-        // Auto-refresh timer — only fires when tab is visible but NOT focused
+        // Auto-refresh timer — fires when tab is visible (focused or not)
         _autoRefreshTimer = setInterval(() => {
             if (document.visibilityState === 'hidden') return;  // Tab hidden → paused
-            if (document.hasFocus()) return;  // In focus → user refreshes manually
             if (currentProject?.project_id !== projectId) return;
             _doRefresh(projectId);
         }, AUTO_REFRESH_MS);
@@ -875,19 +874,21 @@
 
             const elapsed = Date.now() - _lastRefresh;
 
-            // Out of focus → auto with countdown
-            if (!document.hasFocus()) {
-                const remaining = Math.max(0, AUTO_REFRESH_MS - elapsed);
-                const mins = Math.floor(remaining / 60000);
-                const secs = Math.floor((remaining % 60000) / 1000);
-                el.textContent = `auto ${mins}:${String(secs).padStart(2, '0')}`;
+            // Show countdown to next auto-refresh
+            const remaining = Math.max(0, AUTO_REFRESH_MS - elapsed);
+            const mins = Math.floor(remaining / 60000);
+            const secs = Math.floor((remaining % 60000) / 1000);
+
+            const ageSec = Math.floor(elapsed / 1000);
+            if (ageSec < 5) {
+                el.textContent = 'live';
+                el.closest('button')?.classList.remove('animate-pulse');
                 return;
             }
 
-            // In focus → live with stale counter, or stale warning after 5 min
-            const ageSec = Math.floor(elapsed / 1000);
+            el.textContent = `${mins}:${String(secs).padStart(2, '0')}`;
+
             if (ageSec >= 300) {
-                el.textContent = 'stale \u2013 refresh';
                 el.closest('button')?.classList.add('animate-pulse');
             } else {
                 el.closest('button')?.classList.remove('animate-pulse');
