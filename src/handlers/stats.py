@@ -297,7 +297,7 @@ def _breakdown(project_id, qs):
         "project_id": project_id,
         "date_range": {"from": date_from, "to": date_to},
         "total_cost_usd": round(total_cost, 4),
-        "versions": _unique_map(unique_versions) if unique_versions else _sorted_map(versions),
+        "versions": sorted(_unique_map(unique_versions), key=lambda x: x["name"], reverse=True) if unique_versions else sorted(_sorted_map(versions), key=lambda x: x["name"], reverse=True),
         "os": _unique_map(unique_os) if unique_os else _sorted_map(os_breakdown),
         "countries": _unique_map(unique_countries) if unique_countries else _sorted_map(countries),
         "event_types": _sorted_map(event_types),
