@@ -224,16 +224,18 @@ The SDK generates a stable anonymous machine fingerprint from `SHA-256(hostname 
 The dashboard at your CloudFront URL provides:
 
 - **Stat cards** — Today, 7-day, 30-day, Lifetime event counts + unique deployments + cost
-- **Period filter** — Today, 7 Days, 30 Days, 90 Days, 1 Year, Lifetime, Custom date range
-- **Timeseries chart** — Daily/weekly/monthly events + unique deployments (Chart.js)
+- **Period filter** — Today, 7 Days, 30 Days, 90 Days, 1 Year, Lifetime (default), Custom date range
+- **Timeseries chart** — Daily/weekly/monthly events + unique deployments + cost line (Chart.js)
 - **OS doughnut** — Distribution of operating systems (unique deployments)
-- **Version bars** — Which versions are running
+- **Version bars** — Which versions are running (from last 7 days, not lifetime)
 - **Country list** — Geographic distribution with flag emojis (unique deployments)
-- **Models used** — Which AI/ML models are popular + Bedrock usage cost
+- **Models used** — Which AI/ML models are popular + cost per model
+- **Devices** — Cost per deployment device
 - **Event types** — Breakdown by event name (startup, generation, error, etc.)
-- **Recent events** — Scrollable feed with deployment ID, timestamp + timezone
-- **Auto-refresh** — Every 5 minutes when idle (30s of no clicks/keyboard)
+- **Recent events** — Searchable feed with substring filter, pagination, deployment ID + timezone
+- **Auto-refresh** — Every 5 minutes (active whether tab is focused or not, paused when hidden)
 - **Manual refresh** — Click button with countdown timer
+- **Cost tracking** — Aggregated from `.cost` suffix events only (no double-counting with action events)
 
 ### 7.2 GitHub Traffic
 

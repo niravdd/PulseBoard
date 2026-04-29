@@ -225,18 +225,24 @@ def _breakdown(project_id, qs):
             raw_kwargs["FilterExpression"] = Key("event_date").between(date_from, date_to.rstrip("~"))
         while True:
             result = events_table().query(**raw_kwargs,
-                ProjectionExpression="distinct_id, country, os, version, timestamp_id, cost_usd, model")
+                ProjectionExpression="distinct_id, country, os, version, timestamp_id, cost_usd, model, event_type")
             for item in result.get("Items", []):
                 did = item.get("distinct_id", "")
                 ts = item.get("timestamp_id", "")
+                et = item.get("event_type", "")
 
-                # Per-model cost
-                m = item.get("model", "")
+                # Only sum costs from .cost suffix events (matching aggregate logic).
+                # Action events also carry cost_usd but aggregates only count it
+                # from the paired .cost event — so we must do the same here.
                 c_usd = _dec_float(item.get("cost_usd", 0))
-                if m and c_usd > 0:
+                is_cost_event = et.endswith(".cost")
+
+                # Per-model cost (from .cost events only)
+                m = item.get("model", "")
+                if m and c_usd > 0 and is_cost_event:
                     model_costs[m] = model_costs.get(m, 0.0) + c_usd
-                # Per-deployment cost
-                if did and c_usd > 0:
+                # Per-deployment cost (from .cost events only)
+                if did and c_usd > 0 and is_cost_event:
                     deployment_costs[did] = deployment_costs.get(did, 0.0) + c_usd
 
                 if not did:
