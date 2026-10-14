@@ -90,7 +90,7 @@
                 loadTimeseries(currentProject.project_id);
                 loadBreakdown(currentProject.project_id);
                 loadEvents(currentProject.project_id);
-                if (currentProject.github_repo) loadGitHub(currentProject.project_id, _currentDays);
+                if (currentProject.github_repo) loadGitHub(currentProject.project_id);
             }
         });
 
@@ -112,7 +112,7 @@
                 loadTimeseries(currentProject.project_id);
                 loadBreakdown(currentProject.project_id);
                 loadEvents(currentProject.project_id);
-                if (currentProject.github_repo) loadGitHub(currentProject.project_id, _currentDays);
+                if (currentProject.github_repo) loadGitHub(currentProject.project_id);
             }
         });
 
@@ -379,8 +379,9 @@
                 loadEvents(projectId),
             ];
             if (project.github_repo) {
-                loads.push(loadGitHub(projectId, _currentDays));
+                loads.push(loadGitHub(projectId));
             } else {
+                _ticket('github');  // drop any in-flight GitHub load for the previous project
                 document.getElementById('github-section')?.classList.add('hidden');
             }
             await Promise.all(loads);
@@ -392,7 +393,9 @@
     // ── Data Loading ─────────────────────────────────────────────────
 
     async function loadOverview(projectId) {
+        const t = _ticket('overview');
         const data = await PBAuth.api(`/stats/${projectId}/overview`);
+        if (_isStale('overview', t)) return;
         const fmt = (n) => (n || 0).toLocaleString();
         const fmtCost = (n) => {
             const v = n || 0;
@@ -426,14 +429,25 @@
         return `days=${_currentDays}`;
     }
 
+    // Latest-request-wins guard. Period clicks, auto-refresh and tab-focus refreshes
+    // can overlap; on slow/variable networks (mobile) an older response may arrive
+    // last. Each loader takes a ticket and drops any response that isn't its newest.
+    const _reqSeq = {};
+    function _ticket(key) { _reqSeq[key] = (_reqSeq[key] || 0) + 1; return _reqSeq[key]; }
+    function _isStale(key, ticket) { return _reqSeq[key] !== ticket; }
+
     async function loadTimeseries(projectId) {
+        const t = _ticket('timeseries');
         const period = document.getElementById('chart-period')?.value || 'daily';
         const data = await PBAuth.api(`/stats/${projectId}/timeseries?period=${period}&${_buildDateParams()}`);
+        if (_isStale('timeseries', t)) return;
         PBCharts.timeseries('chart-timeseries', data.series || []);
     }
 
     async function loadBreakdown(projectId) {
+        const t = _ticket('breakdown');
         const data = await PBAuth.api(`/stats/${projectId}/breakdown?${_buildDateParams()}`);
+        if (_isStale('breakdown', t)) return;
 
         // Active Deployments
         const deployments = data.deployments || [];
@@ -552,11 +566,13 @@
     const EVENTS_PER_PAGE = 100;
 
     async function loadEvents(projectId, cursor, page) {
+        const t = _ticket('events');
         _eventsPage = page || 1;
         _eventsCursor = cursor || null;
         const filterParam = _eventsFilter ? `&event_type=${encodeURIComponent(_eventsFilter)}` : '';
         const cursorParam = _eventsCursor ? `&cursor=${encodeURIComponent(_eventsCursor)}` : '';
         const data = await PBAuth.api(`/stats/${projectId}/events?limit=${EVENTS_PER_PAGE}&${_buildDateParams()}${filterParam}${cursorParam}`);
+        if (_isStale('events', t)) return;
         const list = document.getElementById('events-list');
         const countEl = document.getElementById('events-count');
         const events = data.events || [];
@@ -672,10 +688,13 @@
 
     // ── GitHub Integration ─────────────────────────────────────────
 
-    async function loadGitHub(projectId, days) {
+    async function loadGitHub(projectId) {
+        const t = _ticket('github');
         try {
-            const params = (days !== undefined && days >= 0) ? `?${_buildDateParams()}` : '';
-            const data = await PBAuth.api(`/stats/${projectId}/github${params}`);
+            // Always send the selected period (incl. custom ranges) — with no params the
+            // API falls back to its 30-day default, which the label would misdescribe.
+            const data = await PBAuth.api(`/stats/${projectId}/github?${_buildDateParams()}`);
+            if (_isStale('github', t)) return;
             const section = document.getElementById('github-section');
             if (!section) return;
             section.classList.remove('hidden');
@@ -693,24 +712,25 @@
             document.getElementById('gh-issues').textContent = `${data.open_issues || 0} open issues · ${data.contributors || 0} contributors`;
 
             if (data.has_traffic) {
-                // Sum from daily data (respects period filter) when available
+                // Clone/view COUNTS are additive, so the period total is the sum of the
+                // daily rows (respects the period filter; 0 when the period has none).
+                // UNIQUES are not additive — the same person on 10 days is 1 cloner, not
+                // 10 — and GitHub only publishes a true unique count for its rolling
+                // 14-day window, so the badges show that figure, labelled as such.
                 const daily = data.daily || [];
-                if (daily.length > 0) {
-                    const totalClones = daily.reduce((s, d) => s + (d.clones || 0), 0);
-                    const totalUniqueClones = daily.reduce((s, d) => s + (d.clones_unique || 0), 0);
-                    const totalViews = daily.reduce((s, d) => s + (d.views || 0), 0);
-                    const totalUniqueViews = daily.reduce((s, d) => s + (d.views_unique || 0), 0);
-                    document.getElementById('gh-clones').textContent = totalClones.toLocaleString();
-                    document.getElementById('gh-clones-unique').textContent = `${totalUniqueClones} unique cloners`;
-                    document.getElementById('gh-views').textContent = totalViews.toLocaleString();
-                    document.getElementById('gh-views-unique').textContent = `${totalUniqueViews} unique visitors`;
-                } else {
-                    // No daily data for this period — show 0 (not stale 14-day totals)
-                    document.getElementById('gh-clones').textContent = '0';
-                    document.getElementById('gh-clones-unique').textContent = `0 unique cloners`;
-                    document.getElementById('gh-views').textContent = '0';
-                    document.getElementById('gh-views-unique').textContent = `0 unique visitors`;
-                }
+                const totalClones = daily.reduce((s, d) => s + (d.clones || 0), 0);
+                const totalViews = daily.reduce((s, d) => s + (d.views || 0), 0);
+                document.getElementById('gh-clones').textContent = totalClones.toLocaleString();
+                document.getElementById('gh-views').textContent = totalViews.toLocaleString();
+                const uniqTip = 'GitHub publishes unique cloners/visitors only for its rolling 14-day window; daily uniques cannot be added up across days.';
+                const clonesBadge = document.getElementById('gh-clones-unique');
+                clonesBadge.textContent = `${(data.unique_cloners_14d || 0).toLocaleString()} unique cloners · last 14d`;
+                clonesBadge.className = 'text-[10px] font-medium px-1.5 py-0.5 rounded bg-pb-accent/10 text-pb-accent mt-1.5 inline-block';
+                clonesBadge.title = uniqTip;
+                const viewsBadge = document.getElementById('gh-views-unique');
+                viewsBadge.textContent = `${(data.unique_visitors_14d || 0).toLocaleString()} unique visitors · last 14d`;
+                viewsBadge.className = 'text-[10px] font-medium px-1.5 py-0.5 rounded bg-pb-green/10 text-pb-green mt-1.5 inline-block';
+                viewsBadge.title = uniqTip;
             } else {
                 document.getElementById('gh-clones').textContent = '—';
                 const clonesBadge = document.getElementById('gh-clones-unique');
@@ -767,10 +787,9 @@
                 `).join('') || '<p class="text-pb-muted">No path data</p>';
             }
 
-            // GitHub traffic chart
-            if (data.daily && data.daily.length > 0) {
-                PBCharts.githubTraffic('chart-github', data.daily);
-            }
+            // GitHub traffic chart — always redrawn, so a period with no rows clears
+            // the previous period's bars instead of leaving them on screen.
+            PBCharts.githubTraffic('chart-github', data.daily || []);
         } catch (err) {
             console.error('GitHub data load failed:', err);
         }
@@ -846,7 +865,7 @@
         loadTimeseries(projectId);
         loadBreakdown(projectId);
         loadEvents(projectId);
-        if (currentProject?.github_repo) loadGitHub(projectId, _currentDays);
+        if (currentProject?.github_repo) loadGitHub(projectId);
     }
 
     function _startAutoRefresh(projectId) {
